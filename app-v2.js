@@ -217,37 +217,59 @@ function resetProgress() {
 /**
  * 暂停/继续生成
  */
-function togglePause() {
+async function togglePause() {
     const pauseBtn = getEl('pause-btn');
     const progressPhase = getEl('progress-phase');
     
-    if (!generationState.isGenerating) return;
+    if (!generationState.isGenerating || !generationState.sessionId) return;
     
     if (generationState.isPaused) {
-        // 继续生成
-        generationState.isPaused = false;
-        if (pauseBtn) {
-            pauseBtn.innerHTML = '⏸️ 暂停';
-            pauseBtn.classList.remove('paused');
-        }
-        if (progressPhase) progressPhase.textContent = generationState.currentPhase === 'prototype' ? '原型生成中...' : 'PRD生成中...';
-        
-        // 触发继续事件
-        if (generationState.abortController) {
-            generationState.abortController.resume();
+        // 继续生成 - 调用后端恢复API
+        try {
+            const response = await fetch(`${API_BASE_URL}/resume`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: generationState.sessionId })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                generationState.isPaused = false;
+                if (pauseBtn) {
+                    pauseBtn.innerHTML = '⏸️ 暂停';
+                    pauseBtn.classList.remove('paused');
+                }
+                if (progressPhase) {
+                    const phaseText = generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成';
+                    progressPhase.textContent = phaseText + '中...';
+                }
+            }
+        } catch (error) {
+            console.error('恢复生成失败:', error);
         }
     } else {
-        // 暂停生成
-        generationState.isPaused = true;
-        if (pauseBtn) {
-            pauseBtn.innerHTML = '▶️ 继续';
-            pauseBtn.classList.add('paused');
-        }
-        if (progressPhase) progressPhase.textContent = '⏸️ 已暂停 - ' + (generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成');
-        
-        // 触发暂停事件
-        if (generationState.abortController) {
-            generationState.abortController.pause();
+        // 暂停生成 - 调用后端暂停API
+        try {
+            const response = await fetch(`${API_BASE_URL}/pause`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: generationState.sessionId })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                generationState.isPaused = true;
+                if (pauseBtn) {
+                    pauseBtn.innerHTML = '▶️ 继续';
+                    pauseBtn.classList.add('paused');
+                }
+                if (progressPhase) {
+                    const phaseText = generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成';
+                    progressPhase.textContent = '⏸️ 已暂停 - ' + phaseText;
+                }
+            }
+        } catch (error) {
+            console.error('暂停生成失败:', error);
         }
     }
 }
@@ -261,6 +283,7 @@ function resetGenerationState() {
         isGenerating: false,
         currentPhase: null,
         currentStep: 0,
+        sessionId: null,
         abortController: null,
         intermediateResults: {
             html: '',
@@ -278,6 +301,13 @@ function resetGenerationState() {
         pauseBtn.classList.remove('paused');
         pauseBtn.disabled = true;
     }
+}
+
+/**
+ * 生成唯一会话ID
+ */
+function generateSessionId() {
+    return 'gen_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
 /**
@@ -317,6 +347,11 @@ async function generate() {
     generationState.isGenerating = true;
     generationState.isPaused = false;
     
+    // 生成或复用 sessionId
+    if (!generationState.sessionId) {
+        generationState.sessionId = generateSessionId();
+    }
+    
     // 启用暂停按钮
     const pauseBtn = getEl('pause-btn');
     if (pauseBtn) pauseBtn.disabled = false;
@@ -328,7 +363,11 @@ async function generate() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ scene })
+            body: JSON.stringify({ 
+                scene,
+                sessionId: generationState.sessionId,
+                resumeFrom: generationState.isPaused ? generationState.currentStep : 0
+            })
         });
         
         if (!response.ok) {
@@ -408,11 +447,17 @@ function handleSSEEvent(data) {
         case 'phase':
             // 阶段切换
             showPhase(data.phase, data.name, data.skill);
+            // 更新生成状态
+            generationState.currentPhase = data.phase;
             break;
             
         case 'progress':
             // 进度更新
             updateProgress(data.phase, data.progress, data.stepData?.title);
+            
+            // 更新生成状态
+            generationState.currentPhase = data.phase;
+            generationState.currentStep = data.step;
             
             // 更新步骤状态
             // 将之前的步骤标记为完成
