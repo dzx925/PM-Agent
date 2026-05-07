@@ -89,7 +89,7 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey) {
   const response = await axios.post(
     'https://api.siliconflow.cn/v1/chat/completions',
     {
-      model: 'deepseek-ai/DeepSeek-V2.5',
+      model: 'deepseek-ai/DeepSeek-V3',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
