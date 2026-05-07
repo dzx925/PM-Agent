@@ -193,7 +193,7 @@ app.post('/generate', async (req, res) => {
       prdSteps
     });
     
-    // 阶段1: 原型生成
+    // 阶段1: 原型生成（分批调用）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prototype', 
@@ -201,43 +201,99 @@ app.post('/generate', async (req, res) => {
       skill: '原型-skill'
     });
     
-    // 模拟每个步骤
-    for (let i = 0; i < prototypeSteps.length; i++) {
-      const step = prototypeSteps[i];
-      const progress = Math.round(((i + 1) / prototypeSteps.length) * 50);
-      
+    // 批次1: 业务理解 + 页面拆解 + 组件设计
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 1,
+      totalSteps: 6,
+      stepData: { title: '业务分析中...', description: '理解业务场景、拆解页面、设计组件' },
+      progress: 10,
+      status: 'ai-generating'
+    });
+    
+    const batch1Prompt = `业务场景：${scene}\n\n请分析上述业务场景，完成以下步骤：\n1. 业务理解：提炼目标用户、核心价值、主流程\n2. 页面拆解：确定所需页面/弹窗（列表页、详情页、表单页等）\n3. 组件设计：定义关键字段、控件、校验规则\n\n请用结构化方式输出分析结果。`;
+    
+    const batch1Result = await callSiliconFlow(prototypeSkill, batch1Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prototype',
-        step: i + 1,
-        totalSteps: prototypeSteps.length,
-        stepData: step,
-        progress: progress,
-        status: i === prototypeSteps.length - 1 ? 'generating' : 'processing'
+        step: 1,
+        totalSteps: 6,
+        stepData: { title: msg, description: '分析业务场景和页面结构...' },
+        progress: 15,
+        status: 'ai-generating'
       });
-      
-      // 模拟处理时间
-      await sleep(800);
-    }
+    });
     
-    // 实际调用 OpenAI 生成原型
-    const htmlPrompt = `业务场景：${scene}\n\n请根据上述业务场景，生成一个完整的可交互 HTML 原型。要求：\n1. 使用 HTML + Tailwind CSS（通过 CDN）\n2. 包含核心页面和交互逻辑\n3. 代码完整，可直接运行\n4. 中文界面\n5. 专业美观的 ToB 风格`;
+    // 批次2: 交互逻辑
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 4,
+      totalSteps: 6,
+      stepData: { title: '设计交互逻辑...', description: '明确点击、跳转、弹窗、数据联动' },
+      progress: 25,
+      status: 'ai-generating'
+    });
     
-    const htmlResult = await callSiliconFlow(prototypeSkill, htmlPrompt, apiKey, (msg) => {
+    const batch2Prompt = `业务场景：${scene}\n\n前期分析结果：\n${batch1Result.substring(0, 2000)}\n\n请基于以上分析，设计详细的交互逻辑：\n1. 页面间的跳转关系\n2. 按钮点击的响应\n3. 弹窗的触发和关闭\n4. 数据联动规则\n5. 状态变化处理`;
+    
+    const batch2Result = await callSiliconFlow(prototypeSkill, batch2Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prototype',
-        step: prototypeSteps.length,
-        totalSteps: prototypeSteps.length,
-        stepData: { title: msg, description: '调用DeepSeek生成HTML原型...' },
+        step: 4,
+        totalSteps: 6,
+        stepData: { title: msg, description: '设计交互逻辑和状态变化...' },
+        progress: 30,
+        status: 'ai-generating'
+      });
+    });
+    
+    // 批次3: 生成原型 + 结构化输出
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 5,
+      totalSteps: 6,
+      stepData: { title: '生成HTML原型...', description: '输出完整可运行的HTML文件' },
+      progress: 40,
+      status: 'ai-generating'
+    });
+    
+    const batch3Prompt = `业务场景：${scene}\n\n前期分析：\n${batch1Result.substring(0, 1500)}\n\n交互设计：\n${batch2Result.substring(0, 1500)}\n\n请基于以上所有分析，生成：\n1. 完整的HTML原型（单文件，内联CSS/JS，可直接运行）\n2. 结构化YAML说明\n\nHTML要求：\n- 使用 Tailwind CSS（CDN引入）\n- 包含所有页面和交互\n- 中文界面，ToB风格\n- 代码完整，无外部依赖`;
+    
+    const batch3Result = await callSiliconFlow(prototypeSkill, batch3Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prototype',
+        step: 5,
+        totalSteps: 6,
+        stepData: { title: msg, description: '生成HTML原型和YAML...' },
         progress: 45,
         status: 'ai-generating'
       });
     });
-    const htmlMatch = htmlResult.match(/```html\n?([\s\S]*?)```/) || 
-                      htmlResult.match(/```\n?([\s\S]*?)```/) ||
-                      [null, htmlResult];
-    const html = htmlMatch[1].trim();
+    
+    // 提取 HTML
+    const htmlMatch = batch3Result.match(/```html\n?([\s\S]*?)```/) || 
+                      batch3Result.match(/<html[\s\S]*?<\/html>/) ||
+                      [null, batch3Result];
+    const html = htmlMatch[1] ? htmlMatch[1].trim() : batch3Result;
+    
+    // 标记原型步骤完成
+    for (let i = 1; i <= 6; i++) {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prototype',
+        step: i,
+        totalSteps: 6,
+        stepData: { title: `步骤${i}完成`, description: '' },
+        progress: 45 + Math.round((i / 6) * 5),
+        status: 'completed'
+      });
+    }
     
     // 阶段2: PRD生成
     sendSSE(res, { 
