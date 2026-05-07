@@ -154,6 +154,75 @@ function sendSSE(res, data) {
 }
 
 /**
+ * 验证输入是否为有效的业务场景描述
+ * @param {string} scene - 用户输入
+ * @returns {object} - { valid: boolean, message: string }
+ */
+function validateScene(scene) {
+  // 1. 长度检查
+  if (scene.length < 10) {
+    return { valid: false, message: '描述太短了，请至少输入 10 个字符，详细描述你的业务场景' };
+  }
+  
+  if (scene.length > 2000) {
+    return { valid: false, message: '描述太长了，请控制在 2000 字符以内' };
+  }
+  
+  // 2. 检查是否全是重复字符（如 "啊啊啊啊啊"）
+  const uniqueChars = new Set(scene.split(''));
+  if (uniqueChars.size <= 3) {
+    return { valid: false, message: '输入内容过于简单，请详细描述你的业务场景和需求' };
+  }
+  
+  // 3. 检查是否包含业务相关关键词
+  const businessKeywords = [
+    // 业务场景
+    '用户', '客户', '产品', '服务', '平台', '系统', '应用', '功能',
+    '管理', '订单', '支付', '审批', '流程', '数据', '报表', '统计',
+    '员工', '部门', '企业', '公司', '组织', '团队', '角色', '权限',
+    '销售', '采购', '库存', '财务', '人事', '行政', '运营', '市场',
+    '电商', '零售', '物流', '供应链', '生产', '制造', '医疗', '教育',
+    // 动作
+    '需要', '想要', '希望', '要求', '实现', '完成', '处理', '解决',
+    '创建', '编辑', '删除', '查询', '搜索', '导入', '导出', '审核',
+    // 业务对象
+    '商品', '订单', '合同', '项目', '任务', '工单', '申请', '审批',
+    '发票', '账单', '报表', '文档', '文件', '图片', '视频', '消息',
+    // 其他
+    '后台', '后台管理', '管理系统', 'CRM', 'ERP', 'OA', 'SaaS', 'B2B', 'B2C'
+  ];
+  
+  const hasBusinessKeyword = businessKeywords.some(keyword => 
+    scene.toLowerCase().includes(keyword.toLowerCase())
+  );
+  
+  if (!hasBusinessKeyword) {
+    return { 
+      valid: false, 
+      message: '输入内容似乎不是业务场景描述。请描述你的产品需求，例如：\n• 一个电商后台管理系统，需要管理商品、订单和库存\n• 一个审批流程系统，支持多级审批和消息通知\n• 一个CRM系统，用于管理客户信息和销售跟进' 
+    };
+  }
+  
+  // 4. 检查是否包含乱码特征（过多的无意义字符组合）
+  const gibberishPattern = /[啊哦嗯哼哈嘿]{3,}|[abcdefghijklmnopqrstuvwxyz]{10,}|[0123456789]{8,}/i;
+  if (gibberishPattern.test(scene)) {
+    return { valid: false, message: '输入内容包含无意义字符，请用清晰的语言描述业务场景' };
+  }
+  
+  // 5. 检查中文比例（至少要有一定比例的中文或英文单词）
+  const chineseChars = scene.match(/[\u4e00-\u9fa5]/g) || [];
+  const englishWords = scene.match(/[a-zA-Z]{2,}/g) || [];
+  const totalChars = scene.length;
+  const meaningfulChars = chineseChars.length + englishWords.join('').length;
+  
+  if (meaningfulChars / totalChars < 0.3) {
+    return { valid: false, message: '输入内容格式异常，请使用正常的中文或英文描述业务场景' };
+  }
+  
+  return { valid: true, message: '' };
+}
+
+/**
  * 生成 API - SSE 流式响应
  */
 app.post('/generate', async (req, res) => {
@@ -162,6 +231,12 @@ app.post('/generate', async (req, res) => {
   
   if (!scene) {
     return res.status(400).json({ error: '请提供业务场景描述' });
+  }
+  
+  // 输入验证
+  const validation = validateScene(scene);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.message });
   }
   
   if (!apiKey) {
