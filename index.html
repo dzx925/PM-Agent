@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PM Agent - 原型与PRD生成器</title>
+    <title>HR Agent - HR系统原型与PRD生成器</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>PM Agent</h1>
-            <p>输入业务场景，自动生成 ToB 原型 + PRD</p>
+            <h1>HR Agent</h1>
+            <p>输入HR业务场景，自动生成 HR系统原型 + PRD</p>
         </header>
 
         <main>
             <section class="input-section">
-                <label for="scene-input">业务场景描述</label>
+                <label for="scene-input">HR业务场景描述</label>
                 <textarea 
                     id="scene-input" 
-                    placeholder="例如：帮我做个HR系统，包含员工信息、任职记录、入转调离等功能......"
+                    placeholder="例如：帮我做个员工考勤系统，支持打卡、请假申请、加班审批、考勤统计等功能......"
                     rows="4"
                 ></textarea>
                 <button id="generate-btn" onclick="generate()">
@@ -120,7 +120,7 @@
         </main>
 
         <footer>
-            <p>Powered by DeepSeek via SiliconFlow | 专为产品经理设计</p>
+            <p>Powered by DeepSeek via SiliconFlow | 专为HR系统设计</p>
         </footer>
     </div>
 
