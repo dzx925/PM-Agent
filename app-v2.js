@@ -495,19 +495,19 @@ function resetGenerateButton() {
 function switchTab(tab) {
     const htmlTab = document.querySelector('.tab-btn:nth-child(1)');
     const prdTab = document.querySelector('.tab-btn:nth-child(2)');
-    const htmlPreview = getEl('html-preview');
-    const prdPreview = getEl('prd-preview');
+    const htmlPanel = getEl('html-panel');
+    const prdPanel = getEl('prd-panel');
     
     if (tab === 'html') {
         htmlTab?.classList.add('active');
         prdTab?.classList.remove('active');
-        if (htmlPreview) htmlPreview.style.display = 'block';
-        if (prdPreview) prdPreview.style.display = 'none';
+        if (htmlPanel) htmlPanel.classList.add('active');
+        if (prdPanel) prdPanel.classList.remove('active');
     } else {
         htmlTab?.classList.remove('active');
         prdTab?.classList.add('active');
-        if (htmlPreview) htmlPreview.style.display = 'none';
-        if (prdPreview) prdPreview.style.display = 'block';
+        if (htmlPanel) htmlPanel.classList.remove('active');
+        if (prdPanel) prdPanel.classList.add('active');
     }
 }
 
