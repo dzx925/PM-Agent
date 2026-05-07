@@ -1,7 +1,7 @@
 // API 基础 URL - 生产环境使用 Render 地址
 const API_BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:3000'
-    : 'https://pm-agent-8swf.onrender.com';
+    : 'https://pm-agent-nkmy.onrender.com';
 
 // 当前结果
 let currentResult = {
