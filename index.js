@@ -211,8 +211,8 @@ function sendSSE(res, data) {
  */
 function validateScene(scene) {
   // 1. 长度检查
-  if (scene.length < 10) {
-    return { valid: false, message: `描述太短了（当前${scene.length}个字符），请至少输入10个字符，详细描述你的业务场景` };
+  if (scene.length < 5) {
+    return { valid: false, message: `描述太短了（当前${scene.length}个字符），请至少输入5个字符，详细描述你的业务场景` };
   }
   
   if (scene.length > 2000) {
