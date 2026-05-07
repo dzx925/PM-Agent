@@ -89,8 +89,8 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = nu
   const maxRetries = 2;
   const timeout = 180000; // 180秒超时
   
-  // 免费模型：GLM-4-9B-0414（永久免费，智谱AI）
-  const FREE_MODEL = 'THUDM/GLM-4-9B-0414';
+  // 免费模型：Qwen2.5-7B-Instruct（永久免费，阿里通义千问）
+  const FREE_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
