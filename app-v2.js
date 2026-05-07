@@ -302,7 +302,7 @@ function handleSSEEvent(data) {
         case 'steps':
             // 接收步骤信息，动态渲染
             cachedSteps.prototype = data.prototypeSteps || [];
-            cachedSteps.prd = data.prdSteps || [];
+            cachedSteps.prd = data.prdSteps || data.prdSubSteps || [];
             
             if (cachedSteps.prototype.length > 0) {
                 renderSteps('prototype', cachedSteps.prototype);
