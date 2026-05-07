@@ -1,4 +1,4 @@
-// API 基础 URL - 生产环境使用 Render 地址
+// API 基础 URL - 生产环境使用 Render 地址 (v2)
 const API_BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:3000'
     : 'https://pm-agent-nkmy.onrender.com';
