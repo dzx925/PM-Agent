@@ -29,6 +29,57 @@ let skillCache = {
 // 缓存有效期（1小时）
 const CACHE_TTL = 60 * 60 * 1000;
 
+// 生成任务管理器（支持断点续传）
+const generationTasks = new Map();
+
+/**
+ * 获取或创建生成任务
+ */
+function getGenerationTask(sessionId) {
+  if (!generationTasks.has(sessionId)) {
+    generationTasks.set(sessionId, {
+      sessionId,
+      createdAt: Date.now(),
+      status: 'idle', // idle, running, paused, completed, error
+      currentPhase: null,
+      currentStep: 0,
+      scene: null,
+      results: {
+        html: null,
+        prd: null,
+        // 原型阶段中间结果
+        batch1Result: null,
+        batch2Result: null,
+        batch3Result: null,
+        // PRD阶段中间结果
+        prdBatch1Result: null,
+        prdBatch2Result: null,
+        prdBatch3Result: null,
+        prdFinalResult: null
+      },
+      progress: 0
+    });
+  }
+  return generationTasks.get(sessionId);
+}
+
+/**
+ * 清理过期的生成任务（24小时）
+ */
+function cleanupGenerationTasks() {
+  const now = Date.now();
+  const EXPIRY = 24 * 60 * 60 * 1000; // 24小时
+  
+  for (const [sessionId, task] of generationTasks.entries()) {
+    if (now - task.createdAt > EXPIRY) {
+      generationTasks.delete(sessionId);
+    }
+  }
+}
+
+// 每小时清理一次过期任务
+setInterval(cleanupGenerationTasks, 60 * 60 * 1000);
+
 /**
  * 获取 Skill 内容
  */
@@ -625,11 +676,106 @@ app.post('/generate', async (req, res) => {
 });
 
 /**
- * 睡眠函数
+ * 睡眠函数 - 支持可中断的睡眠
  */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(ms, abortSignal) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(resolve, ms);
+    if (abortSignal) {
+      abortSignal.then(() => {
+        clearTimeout(timeout);
+        reject(new Error('PAUSED'));
+      });
+    }
+  });
 }
+
+/**
+ * 暂停生成任务
+ */
+app.post('/pause', (req, res) => {
+  const { sessionId } = req.body;
+  
+  if (!sessionId) {
+    return res.status(400).json({ error: '缺少 sessionId' });
+  }
+  
+  const task = generationTasks.get(sessionId);
+  if (!task) {
+    return res.status(404).json({ error: '任务不存在' });
+  }
+  
+  if (task.status === 'running') {
+    task.status = 'pausing'; // 标记为正在暂停，等待当前批次完成
+    task.pauseResolve = null;
+    task.pausePromise = new Promise(resolve => {
+      task.pauseResolve = resolve;
+    });
+  }
+  
+  res.json({ 
+    success: true, 
+    status: task.status,
+    currentPhase: task.currentPhase,
+    currentStep: task.currentStep,
+    progress: task.progress
+  });
+});
+
+/**
+ * 恢复生成任务
+ */
+app.post('/resume', (req, res) => {
+  const { sessionId } = req.body;
+  
+  if (!sessionId) {
+    return res.status(400).json({ error: '缺少 sessionId' });
+  }
+  
+  const task = generationTasks.get(sessionId);
+  if (!task) {
+    return res.status(404).json({ error: '任务不存在' });
+  }
+  
+  if (task.status === 'paused' && task.pauseResolve) {
+    task.status = 'running';
+    task.pauseResolve(); // 解除暂停
+    task.pauseResolve = null;
+    task.pausePromise = null;
+  }
+  
+  res.json({ 
+    success: true, 
+    status: task.status,
+    currentPhase: task.currentPhase,
+    currentStep: task.currentStep,
+    progress: task.progress
+  });
+});
+
+/**
+ * 获取任务状态
+ */
+app.get('/task/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const task = generationTasks.get(sessionId);
+  
+  if (!task) {
+    return res.status(404).json({ error: '任务不存在' });
+  }
+  
+  res.json({
+    sessionId: task.sessionId,
+    status: task.status,
+    currentPhase: task.currentPhase,
+    currentStep: task.currentStep,
+    progress: task.progress,
+    hasResults: {
+      html: !!task.results.html,
+      prd: !!task.results.prd
+    }
+  });
+});
 
 /**
  * 健康检查
