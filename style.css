@@ -508,7 +508,138 @@ body {
     white-space: pre-wrap;
 }
 
-/* 进度浮层 */
+/* 进度消息卡片（嵌入对话） */
+.progress-message .message-content {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+.progress-card {
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+    border: 1px solid #e0e7ff;
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 280px;
+    max-width: 400px;
+}
+
+.progress-card.complete {
+    background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%);
+    border-color: #68d391;
+}
+
+.progress-card.error {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+    border-color: #fc8181;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.progress-status {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+}
+
+.progress-card.complete .progress-status {
+    color: #38a169;
+}
+
+.progress-card.error .progress-status {
+    color: #e53e3e;
+}
+
+.progress-percent {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--primary);
+}
+
+.progress-bar-container {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-card.complete .progress-bar-fill {
+    background: linear-gradient(90deg, #48bb78 0%, #38a169 100%);
+}
+
+.progress-current-step {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 6px;
+}
+
+/* 步骤列表 */
+.progress-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #cbd5e0;
+}
+
+.progress-step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: all 0.3s;
+}
+
+.progress-step-item.completed {
+    color: var(--text);
+}
+
+.progress-step-item .step-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #718096;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.progress-step-item.completed .step-num {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+}
+
+.progress-card.complete .progress-step-item.completed .step-num {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.progress-step-item .step-title {
+    flex: 1;
+}
+
+/* 旧进度浮层（保留兼容） */
 .progress-float {
     position: absolute;
     bottom: 20px;
@@ -523,18 +654,18 @@ body {
     z-index: 100;
 }
 
-.progress-header {
+.progress-float .progress-header {
     display: flex;
     justify-content: space-between;
     margin-bottom: 8px;
     font-size: 13px;
 }
 
-.progress-title {
+.progress-float .progress-title {
     font-weight: 600;
 }
 
-.progress-percent {
+.progress-float .progress-percent {
     color: var(--primary);
     font-weight: 600;
 }
@@ -546,7 +677,7 @@ body {
     overflow: hidden;
 }
 
-.progress-bar {
+.progress-float .progress-bar {
     height: 100%;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
     border-radius: 3px;

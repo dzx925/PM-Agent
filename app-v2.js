@@ -188,9 +188,17 @@ async function handleLoad(command) {
 
 // ========== 生成核心功能 ==========
 
+// 当前进度消息ID
+let currentProgressMessageId = null;
+// 步骤记录
+let generationSteps = [];
+
 async function startGeneration(scene, isModify = false) {
     state.isGenerating = true;
-    showProgress();
+    generationSteps = [];
+    
+    // 创建进度消息卡片
+    currentProgressMessageId = addProgressMessage();
     
     try {
         const response = await fetch(`${API_BASE_URL}/generate`, {
@@ -204,6 +212,10 @@ async function startGeneration(scene, isModify = false) {
                 isModify
             })
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
         
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -221,7 +233,7 @@ async function startGeneration(scene, isModify = false) {
                         const data = JSON.parse(line.slice(6));
                         handleSSEData(data);
                     } catch (e) {
-                        console.error('解析SSE失败:', e);
+                        console.error('解析SSE失败:', e, line);
                     }
                 }
             }
@@ -229,10 +241,13 @@ async function startGeneration(scene, isModify = false) {
         
     } catch (error) {
         console.error('生成失败:', error);
+        updateProgressMessage(currentProgressMessageId, {
+            status: 'error',
+            error: error.message
+        });
         addMessage('assistant', `❌ 生成失败：${error.message}`);
     } finally {
         state.isGenerating = false;
-        hideProgress();
         saveState();
     }
 }
@@ -240,7 +255,23 @@ async function startGeneration(scene, isModify = false) {
 function handleSSEData(data) {
     switch (data.type) {
         case 'progress':
-            updateProgress(data.progress, data.stepData?.title);
+            // 记录步骤
+            if (data.stepData?.title && !generationSteps.find(s => s.title === data.stepData.title)) {
+                generationSteps.push({
+                    title: data.stepData.title,
+                    description: data.stepData.description,
+                    progress: data.progress,
+                    timestamp: Date.now()
+                });
+            }
+            // 更新进度消息
+            updateProgressMessage(currentProgressMessageId, {
+                progress: data.progress,
+                currentStep: data.stepData?.title,
+                description: data.stepData?.description,
+                phase: data.phase,
+                steps: generationSteps
+            });
             break;
         case 'result':
             if (data.html) {
@@ -257,9 +288,18 @@ function handleSSEData(data) {
             }
             break;
         case 'complete':
+            updateProgressMessage(currentProgressMessageId, {
+                status: 'complete',
+                progress: 100,
+                steps: generationSteps
+            });
             handleComplete(data);
             break;
         case 'error':
+            updateProgressMessage(currentProgressMessageId, {
+                status: 'error',
+                error: data.message
+            });
             addMessage('assistant', `❌ ${data.message}`);
             break;
         case 'message':
@@ -384,28 +424,91 @@ function renderMarkdown(md) {
         .replace(/\n/g, '<br>');
 }
 
-// ========== 进度显示 ==========
+// ========== 进度消息（嵌入对话） ==========
 
-function showProgress() {
-    const progress = document.getElementById('progress-float');
-    if (progress) progress.style.display = 'block';
-}
-
-function hideProgress() {
-    setTimeout(() => {
-        const progress = document.getElementById('progress-float');
-        if (progress) progress.style.display = 'none';
-    }, 1000);
-}
-
-function updateProgress(percent, title) {
-    const bar = document.getElementById('progress-bar');
-    const percentEl = document.getElementById('progress-percent');
-    const titleEl = document.getElementById('progress-title');
+function addProgressMessage() {
+    const container = document.getElementById('chat-messages');
+    if (!container) return null;
     
-    if (bar) bar.style.width = `${percent}%`;
-    if (percentEl) percentEl.textContent = `${percent}%`;
-    if (titleEl && title) titleEl.textContent = title;
+    // 移除欢迎卡片
+    const welcome = container.querySelector('.welcome-card');
+    if (welcome) welcome.remove();
+    
+    const messageId = 'progress_' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'message assistant progress-message';
+    div.id = messageId;
+    
+    div.innerHTML = `
+        <div class="message-avatar">🤖</div>
+        <div class="message-body">
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span class="progress-status">🚀 正在生成原型...</span>
+                    <span class="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-current-step">准备开始...</div>
+                <div class="progress-steps-list"></div>
+            </div>
+            <div class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+    `;
+    
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    
+    return messageId;
+}
+
+function updateProgressMessage(messageId, data) {
+    const messageEl = document.getElementById(messageId);
+    if (!messageEl) return;
+    
+    const progressCard = messageEl.querySelector('.progress-card');
+    if (!progressCard) return;
+    
+    // 更新进度条
+    const progressBar = progressCard.querySelector('.progress-bar-fill');
+    const progressPercent = progressCard.querySelector('.progress-percent');
+    const currentStepEl = progressCard.querySelector('.progress-current-step');
+    const stepsListEl = progressCard.querySelector('.progress-steps-list');
+    const statusEl = progressCard.querySelector('.progress-status');
+    
+    if (data.progress !== undefined) {
+        if (progressBar) progressBar.style.width = `${data.progress}%`;
+        if (progressPercent) progressPercent.textContent = `${data.progress}%`;
+    }
+    
+    // 更新当前步骤
+    if (data.currentStep && currentStepEl) {
+        currentStepEl.textContent = data.description || data.currentStep;
+    }
+    
+    // 更新状态
+    if (data.status === 'complete' && statusEl) {
+        statusEl.textContent = '✅ 生成完成';
+        progressCard.classList.add('complete');
+    } else if (data.status === 'error' && statusEl) {
+        statusEl.textContent = '❌ 生成失败';
+        progressCard.classList.add('error');
+    }
+    
+    // 更新步骤列表
+    if (data.steps && stepsListEl) {
+        stepsListEl.innerHTML = data.steps.map((step, index) => `
+            <div class="progress-step-item ${step.progress <= (data.progress || 0) ? 'completed' : ''}">
+                <span class="step-num">${index + 1}</span>
+                <span class="step-title">${step.title}</span>
+            </div>
+        `).join('');
+    }
+    
+    // 滚动到底部
+    const container = document.getElementById('chat-messages');
+    if (container) container.scrollTop = container.scrollHeight;
 }
 
 // ========== 标签切换 ==========
