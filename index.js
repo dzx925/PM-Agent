@@ -13,6 +13,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// 静态文件服务
+app.use(express.static('.'));
+
 // Skill 文件 URL
 const SKILL_URLS = {
   prototype: 'https://raw.githubusercontent.com/dzx925/prototype-skill/main/SKILL.md',
