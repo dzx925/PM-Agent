@@ -330,7 +330,7 @@ function renderMessage(message) {
     div.innerHTML = `
         <div class="message-avatar">${avatar}</div>
         <div class="message-body">
-            <div class="message-content">${escapeHtml(content).replace(/\n/g, '<br>')}</div>
+            <div class="message-content">${escapeHtml(message.content).replace(/\n/g, '<br>')}</div>
             <div class="message-time">${time}</div>
         </div>
     `;
