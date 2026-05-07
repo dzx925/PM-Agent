@@ -215,63 +215,37 @@ function resetProgress() {
 }
 
 /**
- * 暂停/继续生成
+ * 停止生成
  */
-async function togglePause() {
-    const pauseBtn = getEl('pause-btn');
-    const progressPhase = getEl('progress-phase');
+function stopGeneration() {
+    if (!generationState.isGenerating) return;
     
-    if (!generationState.isGenerating || !generationState.sessionId) return;
-    
-    if (generationState.isPaused) {
-        // 继续生成 - 调用后端恢复API
-        try {
-            const response = await fetch(`${API_BASE_URL}/resume`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: generationState.sessionId })
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                generationState.isPaused = false;
-                if (pauseBtn) {
-                    pauseBtn.innerHTML = '⏸️ 暂停';
-                    pauseBtn.classList.remove('paused');
-                }
-                if (progressPhase) {
-                    const phaseText = generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成';
-                    progressPhase.textContent = phaseText + '中...';
-                }
-            }
-        } catch (error) {
-            console.error('恢复生成失败:', error);
-        }
-    } else {
-        // 暂停生成 - 调用后端暂停API
-        try {
-            const response = await fetch(`${API_BASE_URL}/pause`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: generationState.sessionId })
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                generationState.isPaused = true;
-                if (pauseBtn) {
-                    pauseBtn.innerHTML = '▶️ 继续';
-                    pauseBtn.classList.add('paused');
-                }
-                if (progressPhase) {
-                    const phaseText = generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成';
-                    progressPhase.textContent = '⏸️ 已暂停 - ' + phaseText;
-                }
-            }
-        } catch (error) {
-            console.error('暂停生成失败:', error);
-        }
+    // 中断 fetch 请求
+    if (generationState.abortController) {
+        generationState.abortController.abort();
     }
+    
+    // 更新状态
+    generationState.isGenerating = false;
+    
+    // 更新进度显示
+    const progressPhase = getEl('progress-phase');
+    if (progressPhase) {
+        progressPhase.textContent = '⏹️ 已停止';
+    }
+    
+    // 重置按钮状态
+    const generateBtn = getEl('generate-btn');
+    const btnText = generateBtn?.querySelector('.btn-text');
+    const btnLoading = generateBtn?.querySelector('.btn-loading');
+    
+    if (generateBtn) generateBtn.disabled = false;
+    if (btnText) btnText.style.display = 'inline';
+    if (btnLoading) btnLoading.style.display = 'none';
+    
+    // 隐藏停止按钮
+    const stopBtn = getEl('stop-btn');
+    if (stopBtn) stopBtn.style.display = 'none';
 }
 
 /**
@@ -293,21 +267,6 @@ function resetGenerationState() {
             prdBatch3Result: ''
         }
     };
-    
-    // 重置暂停按钮
-    const pauseBtn = getEl('pause-btn');
-    if (pauseBtn) {
-        pauseBtn.innerHTML = '⏸️ 暂停';
-        pauseBtn.classList.remove('paused');
-        pauseBtn.disabled = true;
-    }
-}
-
-/**
- * 生成唯一会话ID
- */
-function generateSessionId() {
-    return 'gen_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
 /**
@@ -347,14 +306,12 @@ async function generate() {
     generationState.isGenerating = true;
     generationState.isPaused = false;
     
-    // 生成或复用 sessionId
-    if (!generationState.sessionId) {
-        generationState.sessionId = generateSessionId();
-    }
+    // 创建 AbortController 用于中断请求
+    generationState.abortController = new AbortController();
     
-    // 启用暂停按钮
-    const pauseBtn = getEl('pause-btn');
-    if (pauseBtn) pauseBtn.disabled = false;
+    // 显示停止按钮
+    const stopBtn = getEl('stop-btn');
+    if (stopBtn) stopBtn.style.display = 'flex';
     
     try {
         // 使用 fetch 发起 POST 请求并读取 SSE 流
@@ -363,11 +320,8 @@ async function generate() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                scene,
-                sessionId: generationState.sessionId,
-                resumeFrom: generationState.isPaused ? generationState.currentStep : 0
-            })
+            body: JSON.stringify({ scene }),
+            signal: generationState.abortController.signal
         });
         
         if (!response.ok) {

@@ -210,9 +210,9 @@ main {
     gap: 12px;
 }
 
-.pause-btn {
+.stop-btn {
     padding: 6px 12px;
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     color: white;
     border: none;
     border-radius: 6px;
@@ -225,16 +225,12 @@ main {
     gap: 4px;
 }
 
-.pause-btn:hover {
+.stop-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+    box-shadow: 0 4px 12px rgba(238, 90, 111, 0.4);
 }
 
-.pause-btn.paused {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.pause-btn:disabled {
+.stop-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
