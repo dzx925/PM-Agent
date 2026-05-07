@@ -309,6 +309,28 @@ function handleSSEEvent(data) {
 }
 
 /**
+ * 切换标签页
+ */
+function switchTab(tab) {
+    const htmlTab = document.querySelector('.tab-btn:nth-child(1)');
+    const prdTab = document.querySelector('.tab-btn:nth-child(2)');
+    const htmlPreview = getEl('html-preview');
+    const prdPreview = getEl('prd-preview');
+    
+    if (tab === 'html') {
+        htmlTab?.classList.add('active');
+        prdTab?.classList.remove('active');
+        if (htmlPreview) htmlPreview.style.display = 'block';
+        if (prdPreview) prdPreview.style.display = 'none';
+    } else {
+        htmlTab?.classList.remove('active');
+        prdTab?.classList.add('active');
+        if (htmlPreview) htmlPreview.style.display = 'none';
+        if (prdPreview) prdPreview.style.display = 'block';
+    }
+}
+
+/**
  * 显示生成结果
  */
 function displayResults() {
