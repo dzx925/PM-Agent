@@ -83,22 +83,25 @@ function parseSkillSteps(skillContent) {
 }
 
 /**
- * 调用 SiliconFlow API (免费) - 带重试机制
+ * 调用 SiliconFlow API - 使用免费模型 Qwen2.5-7B-Instruct
  */
 async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = null) {
   const maxRetries = 2;
-  const timeout = 180000; // 增加到180秒
+  const timeout = 180000; // 180秒超时
+  
+  // 免费模型：Qwen2.5-7B-Instruct（永久免费）
+  const FREE_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (onProgress) {
-        onProgress(`AI生成中 (尝试 ${attempt}/${maxRetries})...`);
+        onProgress(`AI生成中 (免费模型，尝试 ${attempt}/${maxRetries})...`);
       }
       
       const response = await axios.post(
         'https://api.siliconflow.cn/v1/chat/completions',
         {
-          model: 'deepseek-ai/DeepSeek-V3',
+          model: FREE_MODEL,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
@@ -130,7 +133,7 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = nu
         if (error.response?.status === 403) {
           throw new Error('SiliconFlow API Key 无效或已过期，请检查环境变量 OPENAI_API_KEY');
         } else if (error.response?.status === 429) {
-          throw new Error('API 请求过于频繁，请稍后再试');
+          throw new Error('API 请求过于频繁，请稍后再试（免费模型限制：RPM 100, RPS 3）');
         } else if (error.response?.status === 401) {
           throw new Error('API Key 未授权，请检查 SiliconFlow 账户状态');
         }
