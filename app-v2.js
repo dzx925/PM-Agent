@@ -300,9 +300,11 @@ function displayResults() {
  */
 function showError(message) {
     const errorSection = document.getElementById('error-section');
-    const errorText = document.getElementById('error-text');
+    const errorText = errorSection.querySelector('.error-message');
     
-    errorText.textContent = message;
+    if (errorText) {
+        errorText.textContent = message;
+    }
     errorSection.style.display = 'block';
 }
 
