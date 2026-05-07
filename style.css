@@ -176,7 +176,8 @@ main {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 6px;
+    margin-top: 8px;
+    margin-left: 32px; /* 与 step-text 对齐 */
     font-size: 12px;
     color: #667eea;
     font-weight: 500;

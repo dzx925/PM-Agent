@@ -128,16 +128,18 @@ function updateStepStatus(phase, stepNumber, status) {
  * 添加步骤加载提示
  */
 function addStepLoading(stepEl) {
-    const stepText = stepEl.querySelector('.step-text');
-    if (!stepText) return;
+    // 先检查是否已有加载提示
+    let loadingEl = stepEl.querySelector('.step-loading');
+    if (loadingEl) return; // 已有则不再添加
     
-    const loadingEl = document.createElement('div');
+    // 创建加载提示元素，放在 step 元素内，step-text 之后
+    loadingEl = document.createElement('div');
     loadingEl.className = 'step-loading';
     loadingEl.innerHTML = `
         <div class="spinner"></div>
         <span>正在生成，请稍等...</span>
     `;
-    stepText.appendChild(loadingEl);
+    stepEl.appendChild(loadingEl);
 }
 
 /**
