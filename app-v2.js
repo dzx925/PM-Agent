@@ -16,10 +16,18 @@ let cachedSteps = {
 };
 
 /**
+ * 安全地获取 DOM 元素
+ */
+function getEl(id) {
+    return document.getElementById(id);
+}
+
+/**
  * 动态渲染步骤列表
  */
 function renderSteps(phase, steps) {
-    const container = document.getElementById(`${phase}-steps`);
+    const container = getEl(`${phase}-steps`);
+    if (!container) return;
     container.innerHTML = '';
     
     steps.forEach((step, index) => {
@@ -41,14 +49,15 @@ function renderSteps(phase, steps) {
  * 更新步骤状态
  */
 function updateStepStatus(phase, stepNumber, status) {
-    const stepEl = document.getElementById(`${phase}-step-${stepNumber}`);
+    const stepEl = getEl(`${phase}-step-${stepNumber}`);
     if (!stepEl) return;
-    
+
     const iconEl = stepEl.querySelector('.step-icon');
-    
+    if (!iconEl) return;
+
     // 清除所有状态
     stepEl.classList.remove('active', 'completed', 'ai-generating');
-    
+
     switch (status) {
         case 'processing':
             stepEl.classList.add('active');
@@ -71,61 +80,70 @@ function updateStepStatus(phase, stepNumber, status) {
  * 更新进度显示
  */
 function updateProgress(phase, progress, phaseName) {
-    const progressFill = document.getElementById('progress-fill');
-    const progressPhase = document.getElementById('progress-phase');
-    const progressPercent = document.getElementById('progress-percent');
+    const progressFill = getEl('progress-fill');
+    const progressPhase = getEl('progress-phase');
+    const progressPercent = getEl('progress-percent');
     
-    progressFill.style.width = `${progress}%`;
-    progressPercent.textContent = `${progress}%`;
-    
-    if (phaseName) {
-        progressPhase.textContent = phaseName;
-    }
+    if (progressFill) progressFill.style.width = `${progress}%`;
+    if (progressPercent) progressPercent.textContent = `${progress}%`;
+    if (phaseName && progressPhase) progressPhase.textContent = phaseName;
 }
 
 /**
  * 显示阶段标题
  */
 function showPhase(phase, name, skill) {
-    const titleEl = document.getElementById(`${phase}-phase-title`);
+    const titleEl = getEl(`${phase}-phase-title`);
+    if (!titleEl) return;
     titleEl.style.display = 'block';
-    titleEl.querySelector('strong').textContent = phase === 'prototype' ? '🎨 ' + name : '📝 ' + name;
-    titleEl.querySelector('.phase-skill').textContent = skill;
+    const strongEl = titleEl.querySelector('strong');
+    if (strongEl) strongEl.textContent = phase === 'prototype' ? '🎨 ' + name : '📝 ' + name;
+    const skillEl = titleEl.querySelector('.phase-skill');
+    if (skillEl) skillEl.textContent = skill;
     
-    document.getElementById(`${phase}-steps`).style.display = 'flex';
+    const stepsEl = getEl(`${phase}-steps`);
+    if (stepsEl) stepsEl.style.display = 'flex';
 }
 
 /**
  * 重置进度
  */
 function resetProgress() {
-    const progressSection = document.getElementById('progress-section');
-    progressSection.style.display = 'none';
+    const progressSection = getEl('progress-section');
+    if (progressSection) progressSection.style.display = 'none';
     
-    document.getElementById('progress-fill').style.width = '0%';
-    document.getElementById('progress-percent').textContent = '0%';
-    document.getElementById('progress-phase').textContent = '准备生成';
+    const progressFill = getEl('progress-fill');
+    const progressPercent = getEl('progress-percent');
+    const progressPhase = getEl('progress-phase');
     
-    document.getElementById('prototype-phase-title').style.display = 'none';
-    document.getElementById('prd-phase-title').style.display = 'none';
+    if (progressFill) progressFill.style.width = '0%';
+    if (progressPercent) progressPercent.textContent = '0%';
+    if (progressPhase) progressPhase.textContent = '准备生成';
+    
+    const protoTitle = getEl('prototype-phase-title');
+    const prdTitle = getEl('prd-phase-title');
+    if (protoTitle) protoTitle.style.display = 'none';
+    if (prdTitle) prdTitle.style.display = 'none';
     
     // 清空动态步骤
-    document.getElementById('prototype-steps').innerHTML = '';
-    document.getElementById('prd-steps').innerHTML = '';
+    const protoSteps = getEl('prototype-steps');
+    const prdSteps = getEl('prd-steps');
+    if (protoSteps) protoSteps.innerHTML = '';
+    if (prdSteps) prdSteps.innerHTML = '';
 }
 
 /**
  * 生成原型和PRD - 使用 SSE
  */
 async function generate() {
-    const sceneInput = document.getElementById('scene-input');
-    const generateBtn = document.getElementById('generate-btn');
-    const btnText = generateBtn.querySelector('.btn-text');
-    const btnLoading = generateBtn.querySelector('.btn-loading');
-    const outputSection = document.getElementById('output-section');
-    const errorSection = document.getElementById('error-section');
+    const sceneInput = getEl('scene-input');
+    const generateBtn = getEl('generate-btn');
+    const btnText = generateBtn?.querySelector('.btn-text');
+    const btnLoading = generateBtn?.querySelector('.btn-loading');
+    const outputSection = getEl('output-section');
+    const errorSection = getEl('error-section');
     
-    const scene = sceneInput.value.trim();
+    const scene = sceneInput?.value?.trim();
     
     if (!scene) {
         alert('请输入业务场景描述');
@@ -133,15 +151,16 @@ async function generate() {
     }
     
     // 显示加载状态
-    generateBtn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline';
-    errorSection.style.display = 'none';
-    outputSection.style.display = 'none';
+    if (generateBtn) generateBtn.disabled = true;
+    if (btnText) btnText.style.display = 'none';
+    if (btnLoading) btnLoading.style.display = 'inline';
+    if (errorSection) errorSection.style.display = 'none';
+    if (outputSection) outputSection.style.display = 'none';
     
     // 重置并显示进度区域
     resetProgress();
-    document.getElementById('progress-section').style.display = 'block';
+    const progressSection = getEl('progress-section');
+    if (progressSection) progressSection.style.display = 'block';
     
     try {
         // 使用 fetch 发起 POST 请求并读取 SSE 流
@@ -193,9 +212,9 @@ async function generate() {
         resetProgress();
     } finally {
         // 恢复按钮状态
-        generateBtn.disabled = false;
-        btnText.style.display = 'inline';
-        btnLoading.style.display = 'none';
+        if (generateBtn) generateBtn.disabled = false;
+        if (btnText) btnText.style.display = 'inline';
+        if (btnLoading) btnLoading.style.display = 'none';
     }
 }
 
@@ -208,7 +227,10 @@ function handleSSEEvent(data) {
     switch (data.type) {
         case 'status':
             // 状态更新
-            document.getElementById('progress-phase').textContent = data.message;
+            const progressPhase = document.getElementById('progress-phase');
+            if (progressPhase) {
+                progressPhase.textContent = data.message;
+            }
             break;
             
         case 'steps':
@@ -265,15 +287,17 @@ function handleSSEEvent(data) {
             
             // 显示结果
             displayResults();
-            document.getElementById('output-section').style.display = 'block';
+            const outputSection2 = getEl('output-section');
+            if (outputSection2) outputSection2.style.display = 'block';
             
             // 延迟隐藏进度
             setTimeout(() => {
-                document.getElementById('progress-section').style.display = 'none';
+                const progressSection2 = getEl('progress-section');
+                if (progressSection2) progressSection2.style.display = 'none';
             }, 2000);
             
             // 滚动到结果区域
-            document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
+            if (outputSection2) outputSection2.scrollIntoView({ behavior: 'smooth' });
             break;
             
         case 'error':
@@ -288,18 +312,19 @@ function handleSSEEvent(data) {
  * 显示生成结果
  */
 function displayResults() {
-    const htmlPreview = document.getElementById('html-preview');
-    const prdPreview = document.getElementById('prd-preview');
+    const htmlPreview = getEl('html-preview');
+    const prdPreview = getEl('prd-preview');
     
-    htmlPreview.innerHTML = currentResult.html;
-    prdPreview.innerHTML = marked.parse(currentResult.prd);
+    if (htmlPreview) htmlPreview.innerHTML = currentResult.html;
+    if (prdPreview && typeof marked !== 'undefined') prdPreview.innerHTML = marked.parse(currentResult.prd);
 }
 
 /**
  * 显示错误
  */
 function showError(message) {
-    const errorSection = document.getElementById('error-section');
+    const errorSection = getEl('error-section');
+    if (!errorSection) return;
     const errorText = errorSection.querySelector('.error-message');
     
     if (errorText) {
