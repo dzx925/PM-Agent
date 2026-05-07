@@ -119,7 +119,21 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = nu
     } catch (error) {
       console.error(`API调用失败 (尝试 ${attempt}/${maxRetries}):`, error.message);
       
+      // 详细记录错误信息
+      if (error.response) {
+        console.error('错误状态码:', error.response.status);
+        console.error('错误详情:', error.response.data);
+      }
+      
       if (attempt === maxRetries) {
+        // 返回更友好的错误信息
+        if (error.response?.status === 403) {
+          throw new Error('SiliconFlow API Key 无效或已过期，请检查环境变量 OPENAI_API_KEY');
+        } else if (error.response?.status === 429) {
+          throw new Error('API 请求过于频繁，请稍后再试');
+        } else if (error.response?.status === 401) {
+          throw new Error('API Key 未授权，请检查 SiliconFlow 账户状态');
+        }
         throw error;
       }
       
@@ -250,7 +264,10 @@ app.post('/generate', async (req, res) => {
       await sleep(800);
     }
     
-    const prdPrompt = `业务场景：${scene}\n\n已生成的 HTML 原型：\n\`\`\`html\n${html}\n\`\`\`\n\n请根据上述业务场景和原型，生成完整的 PRD 文档。`;
+    // 截断 HTML 避免 token 超限（保留前 3000 字符作为参考）
+    const htmlPreview = html.length > 3000 ? html.substring(0, 3000) + '\n... (HTML 已截断)' : html;
+    
+    const prdPrompt = `业务场景：${scene}\n\n已生成的 HTML 原型（部分）：\n\`\`\`html\n${htmlPreview}\n\`\`\`\n\n请根据上述业务场景和原型代码，生成完整的 PRD 文档。要求包含：\n1. 产品概述\n2. 功能需求\n3. 页面结构说明\n4. 交互逻辑\n5. 数据需求`;
     
     const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
       sendSSE(res, {
