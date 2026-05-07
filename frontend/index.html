@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM Agent - 原型与PRD生成器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PM Agent</h1>
+            <p>输入业务场景，自动生成 ToB 原型 + PRD</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <label for="scene-input">业务场景描述</label>
+                <textarea 
+                    id="scene-input" 
+                    placeholder="例如：帮我做一个客户管理CRM系统，包含客户信息录入、跟进记录、商机管理等功能..."
+                    rows="4"
+                ></textarea>
+                <button id="generate-btn" onclick="generate()">
+                    <span class="btn-text">开始生成</span>
+                    <span class="btn-loading" style="display: none;">生成中...</span>
+                </button>
+            </section>
+
+            <section class="output-section" id="output-section" style="display: none;">
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('html')">HTML 原型</button>
+                    <button class="tab-btn" onclick="switchTab('prd')">PRD 文档</button>
+                </div>
+
+                <div class="tab-content">
+                    <div id="html-panel" class="panel active">
+                        <div class="panel-header">
+                            <h3>可交互原型</h3>
+                            <button onclick="downloadHTML()">下载 HTML</button>
+                        </div>
+                        <iframe id="html-preview" sandbox="allow-scripts"></iframe>
+                    </div>
+
+                    <div id="prd-panel" class="panel">
+                        <div class="panel-header">
+                            <h3>产品需求文档</h3>
+                            <button onclick="downloadPRD()">下载 Markdown</button>
+                        </div>
+                        <pre id="prd-content"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section class="error-section" id="error-section" style="display: none;">
+                <div class="error-message"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by OpenAI | 专为产品经理设计</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
