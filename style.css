@@ -204,6 +204,42 @@ main {
     margin-bottom: 12px;
 }
 
+.progress-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pause-btn {
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pause-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+}
+
+.pause-btn.paused {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.pause-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .progress-phase {
     font-size: 14px;
     font-weight: 600;

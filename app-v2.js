@@ -15,6 +15,22 @@ let cachedSteps = {
     prd: []
 };
 
+// 生成状态管理
+let generationState = {
+    isPaused: false,
+    isGenerating: false,
+    currentPhase: null,
+    currentStep: 0,
+    abortController: null,
+    intermediateResults: {
+        html: '',
+        prd: '',
+        prdBatch1Result: '',
+        prdBatch2Result: '',
+        prdBatch3Result: ''
+    }
+};
+
 /**
  * 显示自定义弹窗
  * @param {string} message - 提示内容
@@ -199,6 +215,72 @@ function resetProgress() {
 }
 
 /**
+ * 暂停/继续生成
+ */
+function togglePause() {
+    const pauseBtn = getEl('pause-btn');
+    const progressPhase = getEl('progress-phase');
+    
+    if (!generationState.isGenerating) return;
+    
+    if (generationState.isPaused) {
+        // 继续生成
+        generationState.isPaused = false;
+        if (pauseBtn) {
+            pauseBtn.innerHTML = '⏸️ 暂停';
+            pauseBtn.classList.remove('paused');
+        }
+        if (progressPhase) progressPhase.textContent = generationState.currentPhase === 'prototype' ? '原型生成中...' : 'PRD生成中...';
+        
+        // 触发继续事件
+        if (generationState.abortController) {
+            generationState.abortController.resume();
+        }
+    } else {
+        // 暂停生成
+        generationState.isPaused = true;
+        if (pauseBtn) {
+            pauseBtn.innerHTML = '▶️ 继续';
+            pauseBtn.classList.add('paused');
+        }
+        if (progressPhase) progressPhase.textContent = '⏸️ 已暂停 - ' + (generationState.currentPhase === 'prototype' ? '原型生成' : 'PRD生成');
+        
+        // 触发暂停事件
+        if (generationState.abortController) {
+            generationState.abortController.pause();
+        }
+    }
+}
+
+/**
+ * 重置生成状态
+ */
+function resetGenerationState() {
+    generationState = {
+        isPaused: false,
+        isGenerating: false,
+        currentPhase: null,
+        currentStep: 0,
+        abortController: null,
+        intermediateResults: {
+            html: '',
+            prd: '',
+            prdBatch1Result: '',
+            prdBatch2Result: '',
+            prdBatch3Result: ''
+        }
+    };
+    
+    // 重置暂停按钮
+    const pauseBtn = getEl('pause-btn');
+    if (pauseBtn) {
+        pauseBtn.innerHTML = '⏸️ 暂停';
+        pauseBtn.classList.remove('paused');
+        pauseBtn.disabled = true;
+    }
+}
+
+/**
  * 生成原型和PRD - 使用 SSE
  */
 async function generate() {
@@ -216,17 +298,28 @@ async function generate() {
         return;
     }
     
-    // 显示加载状态
-    if (generateBtn) generateBtn.disabled = true;
-    if (btnText) btnText.style.display = 'none';
-    if (btnLoading) btnLoading.style.display = 'inline';
-    if (errorSection) errorSection.style.display = 'none';
-    if (outputSection) outputSection.style.display = 'none';
+    // 如果是暂停后继续，不需要重置进度
+    if (!generationState.isPaused) {
+        // 显示加载状态
+        if (generateBtn) generateBtn.disabled = true;
+        if (btnText) btnText.style.display = 'none';
+        if (btnLoading) btnLoading.style.display = 'inline';
+        if (errorSection) errorSection.style.display = 'none';
+        if (outputSection) outputSection.style.display = 'none';
+        
+        // 重置并显示进度区域
+        resetProgress();
+        const progressSection = getEl('progress-section');
+        if (progressSection) progressSection.style.display = 'block';
+    }
     
-    // 重置并显示进度区域
-    resetProgress();
-    const progressSection = getEl('progress-section');
-    if (progressSection) progressSection.style.display = 'block';
+    // 设置生成状态
+    generationState.isGenerating = true;
+    generationState.isPaused = false;
+    
+    // 启用暂停按钮
+    const pauseBtn = getEl('pause-btn');
+    if (pauseBtn) pauseBtn.disabled = false;
     
     try {
         // 使用 fetch 发起 POST 请求并读取 SSE 流
