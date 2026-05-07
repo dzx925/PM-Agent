@@ -1,8 +1,6 @@
 // HR Agent - 对话式原型设计助手
-// API 基础 URL
-const API_BASE_URL = window.location.hostname === 'localhost'
-    ? 'http://localhost:3000'
-    : 'https://pm-agent-nkmy.onrender.com';
+// API 基础 URL - 使用当前域名
+const API_BASE_URL = window.location.origin;
 
 // 全局状态
 const state = {
