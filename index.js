@@ -16,7 +16,7 @@ app.use(express.json());
 // Skill 文件 URL
 const SKILL_URLS = {
   prototype: 'https://raw.githubusercontent.com/dzx925/prototype-skill/main/SKILL.md',
-  prd: 'https://raw.githubusercontent.com/dzx925/pm-prd-skills/main/SKILL.md'
+  prd: 'https://raw.githubusercontent.com/dzx925/pm-prd-skills/main/README.md'
 };
 
 // 缓存 Skill 内容
