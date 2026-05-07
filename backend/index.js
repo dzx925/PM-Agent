@@ -5,12 +5,11 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 中间件 - CORS 配置
+// 中间件 - CORS 配置（允许所有来源）
 app.use(cors({
-    origin: ['https://dzx925.github.io', 'http://localhost:8080', 'http://localhost:3000'],
+    origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
