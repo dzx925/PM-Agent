@@ -260,10 +260,20 @@ function validateScene(scene) {
     };
   }
   
-  // 4. 检查是否包含乱码特征（过多的无意义字符组合）
+  // 4. 检查是否包含乱码特征或无意义重复
   const gibberishPattern = /[啊哦嗯哼哈嘿]{3,}|[abcdefghijklmnopqrstuvwxyz]{10,}|[0123456789]{8,}/i;
   if (gibberishPattern.test(scene)) {
     return { valid: false, message: '输入内容包含无意义字符，请用清晰的语言描述业务场景' };
+  }
+  
+  // 4.1 检查无意义词汇重复（如"好看好看"、"哈哈哈"等）
+  const meaninglessWords = ['好看', '哈哈', '呵呵', '嘿嘿', '嘻嘻', '啊啊', '哦哦', '嗯嗯', '哼哼', '哈哈'];
+  const hasMeaninglessRepeat = meaninglessWords.some(word => {
+    const regex = new RegExp(word + word, 'i');
+    return regex.test(scene);
+  });
+  if (hasMeaninglessRepeat) {
+    return { valid: false, message: '输入内容包含无意义的重复词汇，请详细描述你的业务场景' };
   }
   
   // 5. 检查中文比例（至少要有一定比例的中文或英文单词）
