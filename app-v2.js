@@ -562,10 +562,17 @@ function switchTab(tab) {
  */
 function displayResults() {
     const htmlPreview = getEl('html-preview');
-    const prdPreview = getEl('prd-preview');
+    const prdContent = getEl('prd-content');
     
-    if (htmlPreview) htmlPreview.innerHTML = currentResult.html;
-    if (prdPreview && typeof marked !== 'undefined') prdPreview.innerHTML = marked.parse(currentResult.prd);
+    // 显示 HTML 原型 - 使用 iframe srcdoc
+    if (htmlPreview && currentResult.html) {
+        htmlPreview.srcdoc = currentResult.html;
+    }
+    
+    // 显示 PRD 文档
+    if (prdContent && currentResult.prd) {
+        prdContent.textContent = currentResult.prd;
+    }
 }
 
 /**
