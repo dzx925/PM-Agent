@@ -295,7 +295,7 @@ app.post('/generate', async (req, res) => {
       });
     }
     
-    // 阶段2: PRD生成
+    // 阶段2: PRD生成（按阶段分批调用）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prd', 
@@ -303,43 +303,111 @@ app.post('/generate', async (req, res) => {
       skill: 'pm-prd-skills'
     });
     
-    for (let i = 0; i < prdSteps.length; i++) {
-      const step = prdSteps[i];
-      const progress = 50 + Math.round(((i + 1) / prdSteps.length) * 45);
-      
+    // PRD 阶段1: 原型解析 + 业务提炼
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 1,
+      totalSteps: 6,
+      stepData: { title: '解析原型并提炼业务...', description: '分析HTML结构，提取业务信息' },
+      progress: 50,
+      status: 'ai-generating'
+    });
+    
+    const prdBatch1Prompt = `业务场景：${scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${html.substring(0, 2000)}\n...\n\`\`\`\n\n请完成：\n1. 原型解析：提取页面结构、字段、交互、功能模块\n2. 业务提炼：补充角色、目标、痛点、业务场景\n\n输出结构化结果。`;
+    
+    const prdBatch1Result = await callSiliconFlow(prdSkill, prdBatch1Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
-        step: i + 1,
-        totalSteps: prdSteps.length,
-        stepData: step,
-        progress: progress,
-        status: i === prdSteps.length - 1 ? 'generating' : 'processing'
+        step: 1,
+        totalSteps: 6,
+        stepData: { title: msg, description: '解析原型结构...' },
+        progress: 55,
+        status: 'ai-generating'
       });
-      
-      await sleep(800);
-    }
+    });
     
-    // 截断 HTML 避免 token 超限（保留前 3000 字符作为参考）
-    const htmlPreview = html.length > 3000 ? html.substring(0, 3000) + '\n... (HTML 已截断)' : html;
+    // PRD 阶段2: 生成业务章节 + 分析章节
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 2,
+      totalSteps: 6,
+      stepData: { title: '生成业务章节...', description: '编写业务背景、目标、范围' },
+      progress: 60,
+      status: 'ai-generating'
+    });
     
-    const prdPrompt = `业务场景：${scene}\n\n已生成的 HTML 原型（部分）：\n\`\`\`html\n${htmlPreview}\n\`\`\`\n\n请根据上述业务场景和原型代码，生成完整的 PRD 文档。要求包含：\n1. 产品概述\n2. 功能需求\n3. 页面结构说明\n4. 交互逻辑\n5. 数据需求`;
+    const prdBatch2Prompt = `业务场景：${scene}\n\n前期分析：\n${prdBatch1Result.substring(0, 2000)}\n\n请生成PRD的业务章节和分析章节：\n1. 业务背景与目标\n2. 用户角色与场景\n3. 需求范围\n4. 竞品分析\n5. 核心功能点`;
     
-    const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
+    const prdBatch2Result = await callSiliconFlow(prdSkill, prdBatch2Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
-        step: prdSteps.length,
-        totalSteps: prdSteps.length,
-        stepData: { title: msg, description: '调用DeepSeek生成PRD文档...' },
+        step: 2,
+        totalSteps: 6,
+        stepData: { title: msg, description: '编写业务和分析章节...' },
+        progress: 65,
+        status: 'ai-generating'
+      });
+    });
+    
+    // PRD 阶段3: 生成方案框架 + 功能模块
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 3,
+      totalSteps: 6,
+      stepData: { title: '设计方案框架...', description: '构建功能模块和系统架构' },
+      progress: 70,
+      status: 'ai-generating'
+    });
+    
+    const prdBatch3Prompt = `业务场景：${scene}\n\n前期分析：\n${prdBatch1Result.substring(0, 1500)}\n\n业务章节：\n${prdBatch2Result.substring(0, 1500)}\n\n请生成：\n1. 方案框架（系统架构、模块划分）\n2. 各功能模块详细设计\n3. 数据模型设计`;
+    
+    const prdBatch3Result = await callSiliconFlow(prdSkill, prdBatch3Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 3,
+        totalSteps: 6,
+        stepData: { title: msg, description: '设计功能模块...' },
+        progress: 75,
+        status: 'ai-generating'
+      });
+    });
+    
+    // PRD 阶段4: 生成准备章节 + 计划章节 + 合并优化
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 4,
+      totalSteps: 6,
+      stepData: { title: '完善PRD文档...', description: '生成准备、计划章节，合并优化' },
+      progress: 85,
+      status: 'ai-generating'
+    });
+    
+    const prdBatch4Prompt = `业务场景：${scene}\n\n业务章节：\n${prdBatch2Result.substring(0, 1000)}\n\n方案设计：\n${prdBatch3Result.substring(0, 1500)}\n\n请完成PRD剩余部分：\n1. 准备章节（环境、数据、风险）\n2. 计划章节（里程碑、排期）\n3. 合并所有内容，优化格式\n4. 输出完整PRD（Markdown格式）`;
+    
+    const prdFinalResult = await callSiliconFlow(prdSkill, prdBatch4Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 4,
+        totalSteps: 6,
+        stepData: { title: msg, description: '合并优化最终PRD...' },
         progress: 90,
         status: 'ai-generating'
       });
     });
-    const prdMatch = prdResult.match(/```markdown\n?([\s\S]*?)```/) || 
-                     prdResult.match(/```\n?([\s\S]*?)```/) ||
-                     [null, prdResult];
-    const prd = prdMatch[1].trim();
+    
+    // 提取 PRD
+    const prdMatch = prdFinalResult.match(/```markdown\n?([\s\S]*?)```/) || 
+                     prdFinalResult.match(/# [\s\S]*/) ||
+                     [null, prdFinalResult];
+    const prd = prdMatch[1] ? prdMatch[1].trim() : prdFinalResult;
     
     // 完成
     sendSSE(res, {
