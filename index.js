@@ -280,11 +280,14 @@ function validateScene(scene) {
 }
 
 /**
- * 生成 API - SSE 流式响应
+ * 生成 API - SSE 流式响应（支持断点续传）
  */
 app.post('/generate', async (req, res) => {
-  const { scene } = req.body;
+  const { scene, sessionId, resumeFrom = 0 } = req.body;
   const apiKey = process.env.OPENAI_API_KEY;
+  
+  // 获取或创建任务
+  const task = sessionId ? getGenerationTask(sessionId) : null;
   
   // 设置 SSE 头（提前设置，以便可以发送错误事件）
   res.setHeader('Content-Type', 'text/event-stream');
