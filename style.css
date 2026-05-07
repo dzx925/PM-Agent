@@ -171,6 +171,30 @@ main {
     color: #667eea;
 }
 
+/* 当前步骤的加载提示 */
+.step-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #667eea;
+    font-weight: 500;
+}
+
+.step-loading .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e9ecef;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* 进度头部 */
 .progress-header {
     display: flex;

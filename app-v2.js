@@ -97,6 +97,12 @@ function updateStepStatus(phase, stepNumber, status) {
 
     // 清除所有状态
     stepEl.classList.remove('active', 'completed', 'ai-generating');
+    
+    // 移除已有的加载提示
+    const existingLoading = stepEl.querySelector('.step-loading');
+    if (existingLoading) {
+        existingLoading.remove();
+    }
 
     switch (status) {
         case 'processing':
@@ -106,6 +112,8 @@ function updateStepStatus(phase, stepNumber, status) {
         case 'ai-generating':
             stepEl.classList.add('ai-generating');
             iconEl.textContent = '🤖';
+            // 添加加载提示
+            addStepLoading(stepEl);
             break;
         case 'completed':
             stepEl.classList.add('completed');
@@ -114,6 +122,22 @@ function updateStepStatus(phase, stepNumber, status) {
         default:
             iconEl.textContent = '⏳';
     }
+}
+
+/**
+ * 添加步骤加载提示
+ */
+function addStepLoading(stepEl) {
+    const stepText = stepEl.querySelector('.step-text');
+    if (!stepText) return;
+    
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'step-loading';
+    loadingEl.innerHTML = `
+        <div class="spinner"></div>
+        <span>正在生成，请稍等...</span>
+    `;
+    stepText.appendChild(loadingEl);
 }
 
 /**
