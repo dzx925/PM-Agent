@@ -83,30 +83,50 @@ function parseSkillSteps(skillContent) {
 }
 
 /**
- * 调用 SiliconFlow API (免费)
+ * 调用 SiliconFlow API (免费) - 带重试机制
  */
-async function callSiliconFlow(systemPrompt, userPrompt, apiKey) {
-  const response = await axios.post(
-    'https://api.siliconflow.cn/v1/chat/completions',
-    {
-      model: 'deepseek-ai/DeepSeek-V3',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 4000
-    },
-    {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 120000
-    }
-  );
+async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = null) {
+  const maxRetries = 2;
+  const timeout = 180000; // 增加到180秒
   
-  return response.data.choices[0].message.content;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (onProgress) {
+        onProgress(`AI生成中 (尝试 ${attempt}/${maxRetries})...`);
+      }
+      
+      const response = await axios.post(
+        'https://api.siliconflow.cn/v1/chat/completions',
+        {
+          model: 'deepseek-ai/DeepSeek-V3',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: timeout
+        }
+      );
+      
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      console.error(`API调用失败 (尝试 ${attempt}/${maxRetries}):`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // 等待后重试
+      await sleep(2000 * attempt);
+    }
+  }
 }
 
 /**
@@ -187,19 +207,19 @@ app.post('/generate', async (req, res) => {
     }
     
     // 实际调用 OpenAI 生成原型
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: prototypeSteps.length,
-      totalSteps: prototypeSteps.length,
-      stepData: { title: 'AI生成中', description: '调用DeepSeek生成HTML原型...' },
-      progress: 45,
-      status: 'ai-generating'
-    });
-    
     const htmlPrompt = `业务场景：${scene}\n\n请根据上述业务场景，生成一个完整的可交互 HTML 原型。要求：\n1. 使用 HTML + Tailwind CSS（通过 CDN）\n2. 包含核心页面和交互逻辑\n3. 代码完整，可直接运行\n4. 中文界面\n5. 专业美观的 ToB 风格`;
     
-    const htmlResult = await callSiliconFlow(prototypeSkill, htmlPrompt, apiKey);
+    const htmlResult = await callSiliconFlow(prototypeSkill, htmlPrompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prototype',
+        step: prototypeSteps.length,
+        totalSteps: prototypeSteps.length,
+        stepData: { title: msg, description: '调用DeepSeek生成HTML原型...' },
+        progress: 45,
+        status: 'ai-generating'
+      });
+    });
     const htmlMatch = htmlResult.match(/```html\n?([\s\S]*?)```/) || 
                       htmlResult.match(/```\n?([\s\S]*?)```/) ||
                       [null, htmlResult];
@@ -230,20 +250,19 @@ app.post('/generate', async (req, res) => {
       await sleep(800);
     }
     
-    // 实际生成 PRD
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: prdSteps.length,
-      totalSteps: prdSteps.length,
-      stepData: { title: 'AI生成中', description: '调用DeepSeek生成PRD文档...' },
-      progress: 90,
-      status: 'ai-generating'
-    });
-    
     const prdPrompt = `业务场景：${scene}\n\n已生成的 HTML 原型：\n\`\`\`html\n${html}\n\`\`\`\n\n请根据上述业务场景和原型，生成完整的 PRD 文档。`;
     
-    const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey);
+    const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: prdSteps.length,
+        totalSteps: prdSteps.length,
+        stepData: { title: msg, description: '调用DeepSeek生成PRD文档...' },
+        progress: 90,
+        status: 'ai-generating'
+      });
+    });
     const prdMatch = prdResult.match(/```markdown\n?([\s\S]*?)```/) || 
                      prdResult.match(/```\n?([\s\S]*?)```/) ||
                      [null, prdResult];
