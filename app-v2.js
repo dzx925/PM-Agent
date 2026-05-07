@@ -16,6 +16,46 @@ let cachedSteps = {
 };
 
 /**
+ * 显示自定义弹窗
+ * @param {string} message - 提示内容
+ * @param {string} title - 标题（可选，默认"提示"）
+ * @param {string} icon - 图标（可选，默认"💡"）
+ */
+function showModal(message, title = '提示', icon = '💡') {
+    const overlay = getEl('modal-overlay');
+    const titleEl = getEl('modal-title');
+    const messageEl = getEl('modal-message');
+    const iconEl = document.querySelector('.modal-icon');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    if (iconEl) iconEl.textContent = icon;
+    if (overlay) overlay.style.display = 'flex';
+}
+
+/**
+ * 关闭自定义弹窗
+ */
+function closeModal() {
+    const overlay = getEl('modal-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+// 点击遮罩层关闭弹窗
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'modal-overlay') {
+        closeModal();
+    }
+});
+
+// 按 ESC 键关闭弹窗
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeModal();
+    }
+});
+
+/**
  * 安全地获取 DOM 元素
  */
 function getEl(id) {
@@ -146,7 +186,7 @@ async function generate() {
     const scene = sceneInput?.value?.trim();
     
     if (!scene) {
-        alert('请输入业务场景描述');
+        showModal('请输入业务场景描述', '提示', '✍️');
         return;
     }
     
@@ -300,12 +340,35 @@ function handleSSEEvent(data) {
             if (outputSection2) outputSection2.scrollIntoView({ behavior: 'smooth' });
             break;
             
+        case 'validation_error':
+            // 输入验证错误 - 使用弹窗显示
+            showModal(data.message, '输入验证失败', '⚠️');
+            resetProgress();
+            resetGenerateButton();
+            break;
+            
         case 'error':
             // 错误
-            showError(`生成失败: ${data.message}`);
+            showModal(data.message, '生成失败', '❌');
             resetProgress();
+            resetGenerateButton();
             break;
     }
+}
+
+/**
+ * 重置生成按钮状态
+ */
+function resetGenerateButton() {
+    const generateBtn = getEl('generate-btn');
+    const btnText = generateBtn?.querySelector('.btn-text');
+    const btnLoading = generateBtn?.querySelector('.btn-loading');
+    const progressSection = getEl('progress-section');
+    
+    if (generateBtn) generateBtn.disabled = false;
+    if (btnText) btnText.style.display = 'inline';
+    if (btnLoading) btnLoading.style.display = 'none';
+    if (progressSection) progressSection.style.display = 'none';
 }
 
 /**

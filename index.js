@@ -235,24 +235,30 @@ app.post('/generate', async (req, res) => {
   const { scene } = req.body;
   const apiKey = process.env.OPENAI_API_KEY;
   
+  // 设置 SSE 头（提前设置，以便可以发送错误事件）
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
   if (!scene) {
-    return res.status(400).json({ error: '请提供业务场景描述' });
+    sendSSE(res, { type: 'error', message: '请提供业务场景描述' });
+    res.end();
+    return;
   }
   
   // 输入验证
   const validation = validateScene(scene);
   if (!validation.valid) {
-    return res.status(400).json({ error: validation.message });
+    sendSSE(res, { type: 'validation_error', message: validation.message });
+    res.end();
+    return;
   }
   
   if (!apiKey) {
-    return res.status(500).json({ error: '服务器未配置 OpenAI API Key' });
+    sendSSE(res, { type: 'error', message: '服务器未配置 OpenAI API Key' });
+    res.end();
+    return;
   }
-  
-  // 设置 SSE 头
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
   
   try {
     // 获取 Skill 内容
