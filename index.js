@@ -298,7 +298,7 @@ app.post('/generate', async (req, res) => {
       });
     }
     
-    // 阶段2: PRD生成（按阶段分批调用）
+    // 阶段2: PRD生成（显示子Skill调用过程）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prd', 
@@ -306,13 +306,35 @@ app.post('/generate', async (req, res) => {
       skill: 'pm-prd-skills'
     });
     
+    // 定义PRD子Skill步骤
+    const prdSubSteps = [
+      { skill: 'prototype-parser', icon: '📋', title: '原型解析', desc: '提取页面结构、字段、交互、功能模块' },
+      { skill: 'business-refiner', icon: '🔍', title: '业务提炼', desc: '补充角色、目标、痛点、业务场景' },
+      { skill: 'prd-business-section', icon: '📝', title: '业务章节', desc: '编写业务背景、目标、范围' },
+      { skill: 'prd-analysis-section', icon: '📊', title: '分析章节', desc: '竞品分析、核心功能点' },
+      { skill: 'solution-framework', icon: '🏗️', title: '方案框架', desc: '构建系统架构、模块划分' },
+      { skill: 'feature-module-generator', icon: '⚙️', title: '功能模块', desc: '生成各模块详细设计' },
+      { skill: 'solution-merger', icon: '🔗', title: '方案合并', desc: '合并框架和模块' },
+      { skill: 'prd-optimizer', icon: '✨', title: 'PRD优化', desc: '质量检查、格式优化' }
+    ];
+    
+    // 发送子Skill步骤列表
+    sendSSE(res, {
+      type: 'steps',
+      prdSubSteps: prdSubSteps
+    });
+    
     // PRD 阶段1: 原型解析 + 业务提炼
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 1,
-      totalSteps: 6,
-      stepData: { title: '解析原型并提炼业务...', description: '分析HTML结构，提取业务信息' },
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title}`, 
+        description: prdSubSteps[0].desc,
+        skill: prdSubSteps[0].skill
+      },
       progress: 50,
       status: 'ai-generating'
     });
@@ -324,21 +346,43 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prd',
         step: 1,
-        totalSteps: 6,
-        stepData: { title: msg, description: '解析原型结构...' },
-        progress: 55,
+        totalSteps: 8,
+        stepData: { 
+          title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title} - ${msg}`, 
+          description: prdSubSteps[0].desc,
+          skill: prdSubSteps[0].skill
+        },
+        progress: 52,
         status: 'ai-generating'
       });
     });
     
-    // PRD 阶段2: 生成业务章节 + 分析章节
+    // 标记步骤1完成，显示步骤2
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 1,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title}`, 
+        description: prdSubSteps[0].desc 
+      },
+      progress: 54,
+      status: 'completed'
+    });
+    
+    // PRD 阶段2: 业务章节 + 分析章节
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 2,
-      totalSteps: 6,
-      stepData: { title: '生成业务章节...', description: '编写业务背景、目标、范围' },
-      progress: 60,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title}`, 
+        description: prdSubSteps[2].desc,
+        skill: prdSubSteps[2].skill
+      },
+      progress: 56,
       status: 'ai-generating'
     });
     
@@ -349,21 +393,43 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prd',
         step: 2,
-        totalSteps: 6,
-        stepData: { title: msg, description: '编写业务和分析章节...' },
-        progress: 65,
+        totalSteps: 8,
+        stepData: { 
+          title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title} - ${msg}`, 
+          description: prdSubSteps[2].desc,
+          skill: prdSubSteps[2].skill
+        },
+        progress: 60,
         status: 'ai-generating'
       });
     });
     
-    // PRD 阶段3: 生成方案框架 + 功能模块
+    // 标记步骤2完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 2,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title}`, 
+        description: prdSubSteps[2].desc 
+      },
+      progress: 62,
+      status: 'completed'
+    });
+    
+    // PRD 阶段3: 方案框架 + 功能模块
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 3,
-      totalSteps: 6,
-      stepData: { title: '设计方案框架...', description: '构建功能模块和系统架构' },
-      progress: 70,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title}`, 
+        description: prdSubSteps[4].desc,
+        skill: prdSubSteps[4].skill
+      },
+      progress: 64,
       status: 'ai-generating'
     });
     
@@ -374,21 +440,43 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prd',
         step: 3,
-        totalSteps: 6,
-        stepData: { title: msg, description: '设计功能模块...' },
-        progress: 75,
+        totalSteps: 8,
+        stepData: { 
+          title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title} - ${msg}`, 
+          description: prdSubSteps[4].desc,
+          skill: prdSubSteps[4].skill
+        },
+        progress: 70,
         status: 'ai-generating'
       });
     });
     
-    // PRD 阶段4: 生成准备章节 + 计划章节 + 合并优化
+    // 标记步骤3完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 3,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title}`, 
+        description: prdSubSteps[4].desc 
+      },
+      progress: 72,
+      status: 'completed'
+    });
+    
+    // PRD 阶段4: 方案合并 + PRD优化
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 4,
-      totalSteps: 6,
-      stepData: { title: '完善PRD文档...', description: '生成准备、计划章节，合并优化' },
-      progress: 85,
+      totalSteps: 8,
+      stepData: { 
+        title: `${prdSubSteps[6].icon} ${prdSubSteps[6].title} + ${prdSubSteps[7].title}`, 
+        description: `${prdSubSteps[6].desc}，${prdSubSteps[7].desc}`,
+        skill: `${prdSubSteps[6].skill}, ${prdSubSteps[7].skill}`
+      },
+      progress: 80,
       status: 'ai-generating'
     });
     
@@ -399,12 +487,32 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prd',
         step: 4,
-        totalSteps: 6,
-        stepData: { title: msg, description: '合并优化最终PRD...' },
+        totalSteps: 8,
+        stepData: { 
+          title: `${prdSubSteps[6].icon} ${prdSubSteps[6].title} + ${prdSubSteps[7].title} - ${msg}`, 
+          description: `${prdSubSteps[6].desc}，${prdSubSteps[7].desc}`,
+          skill: `${prdSubSteps[6].skill}, ${prdSubSteps[7].skill}`
+        },
         progress: 90,
         status: 'ai-generating'
       });
     });
+    
+    // 标记所有PRD步骤完成
+    for (let i = 4; i <= 8; i++) {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: i,
+        totalSteps: 8,
+        stepData: { 
+          title: i < prdSubSteps.length ? `${prdSubSteps[i-1]?.icon || '✅'} ${prdSubSteps[i-1]?.title || '完成'}` : '✅ 完成', 
+          description: prdSubSteps[i-1]?.desc || '' 
+        },
+        progress: 90 + Math.round((i / 8) * 8),
+        status: 'completed'
+      });
+    }
     
     // 提取 PRD
     const prdMatch = prdFinalResult.match(/```markdown\n?([\s\S]*?)```/) || 
