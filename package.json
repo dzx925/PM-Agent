@@ -1,11 +1,13 @@
 {
   "name": "pm-agent-backend",
-  "version": "1.0.0",
-  "description": "PM Agent 后端服务 - 生成原型和PRD",
+  "version": "2.0.0",
+  "description": "PM Agent 后端服务 - 对话式原型设计助手",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "chat": "node chat-server.js",
+    "chat:dev": "nodemon chat-server.js"
   },
   "dependencies": {
     "express": "^4.18.2",

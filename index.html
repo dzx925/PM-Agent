@@ -3,139 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Agent - HR系统原型与PRD生成器</title>
+    <title>HR Agent - 对话式HR系统原型设计助手</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>HR Agent</h1>
-            <p>输入HR业务场景，自动生成 HR系统原型 + PRD</p>
-        </header>
+    <div class="app-layout">
+        <!-- 左侧：对话区域 -->
+        <aside class="chat-panel">
+            <div class="chat-header">
+                <div class="brand">
+                    <span class="brand-icon">🎨</span>
+                    <div class="brand-text">
+                        <h2>HR Agent</h2>
+                        <span>对话式原型设计</span>
+                    </div>
+                </div>
+                <button class="icon-btn" onclick="startNewChat()" title="新建对话">+</button>
+            </div>
 
-        <main>
-            <section class="input-section">
-                <label for="scene-input">HR业务场景描述</label>
-                <textarea 
-                    id="scene-input" 
-                    placeholder="例如：帮我做个员工考勤系统，支持打卡、请假申请、加班审批、考勤统计等功能......"
-                    rows="4"
-                ></textarea>
-                <button id="generate-btn" onclick="generate()">
-                    <span class="btn-text">开始生成</span>
-                    <span class="btn-loading" style="display: none;">生成中...</span>
-                </button>
-                
-                <!-- 进度显示区域 -->
-                <div class="progress-section" id="progress-section" style="display: none;">
-                    <div class="progress-header">
-                        <span class="progress-phase" id="progress-phase">准备生成</span>
-                        <div class="progress-controls">
-                            <span class="progress-percent" id="progress-percent">0%</span>
-                            <button class="stop-btn" id="stop-btn" onclick="stopGeneration()" title="停止生成" style="display: none;">
-                                ⏹️ 停止
-                            </button>
+            <!-- 快捷命令 -->
+            <div class="quick-actions">
+                <div class="quick-title">快捷命令</div>
+                <div class="quick-tags">
+                    <button class="quick-tag" onclick="insertCommand('帮我设计一个员工考勤系统')">📝 考勤系统</button>
+                    <button class="quick-tag" onclick="insertCommand('生成招聘管理页面')">👥 招聘管理</button>
+                    <button class="quick-tag" onclick="insertCommand('从第3步开始设计')">⚡ 指定步骤</button>
+                    <button class="quick-tag" onclick="showLoadModal()">📂 加载项目</button>
+                </div>
+            </div>
+
+            <!-- 对话历史 -->
+            <div class="chat-messages" id="chat-messages">
+                <div class="welcome-card">
+                    <div class="welcome-icon">👋</div>
+                    <h3>我是你的HR系统原型助手</h3>
+                    <p>输入HR业务场景，我帮你自动生成原型和PRD</p>
+                    <div class="command-examples">
+                        <div class="cmd-example" onclick="insertCommand('帮我设计一个员工考勤系统，支持打卡、请假、加班审批')">
+                            <span class="cmd-label">设计</span>
+                            <span>帮我设计一个员工考勤系统...</span>
                         </div>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill"></div>
-                    </div>
-                    
-                    <!-- 原型生成步骤 -->
-                    <div class="phase-title" id="prototype-phase-title" style="display: none;">
-                        <strong>🎨 原型生成</strong> <span class="phase-skill">原型-skill</span>
-                    </div>
-                    <div class="progress-steps" id="prototype-steps" style="display: none;">
-                        <div class="step" id="proto-step-1">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">业务理解 - 提炼目标用户、核心价值、主流程</span>
+                        <div class="cmd-example" onclick="insertCommand('修改登录页面，添加验证码功能')">
+                            <span class="cmd-label">修改</span>
+                            <span>修改登录页面，添加验证码...</span>
                         </div>
-                        <div class="step" id="proto-step-2">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">页面拆解 - 确定所需页面/弹窗</span>
-                        </div>
-                        <div class="step" id="proto-step-3">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">组件设计 - 定义字段、控件、校验规则</span>
-                        </div>
-                        <div class="step" id="proto-step-4">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">交互逻辑 - 明确点击、跳转、弹窗、数据联动</span>
-                        </div>
-                        <div class="step" id="proto-step-5">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">生成原型 - 输出完整 HTML 文件</span>
-                        </div>
-                        <div class="step" id="proto-step-6">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">结构化输出 - 附加 YAML 说明</span>
-                        </div>
-                    </div>
-                    
-                    <!-- PRD生成步骤 -->
-                    <div class="phase-title" id="prd-phase-title" style="display: none;">
-                        <strong>📝 PRD 生成</strong> <span class="phase-skill">pm-prd-skills</span>
-                    </div>
-                    <div class="progress-steps" id="prd-steps" style="display: none;">
-                        <div class="step" id="prd-step-1">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">分析原型 - 提取功能点和页面结构</span>
-                        </div>
-                        <div class="step" id="prd-step-2">
-                            <span class="step-icon">⏳</span>
-                            <span class="step-text">生成 PRD 文档</span>
+                        <div class="cmd-example" onclick="insertCommand('从第3步开始，设计薪酬系统')">
+                            <span class="cmd-label">步骤</span>
+                            <span>从第3步开始，设计薪酬系统...</span>
                         </div>
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <section class="output-section" id="output-section" style="display: none;">
-                <div class="tabs">
-                    <button class="tab-btn active" onclick="switchTab('html')">HTML 原型</button>
-                    <button class="tab-btn" onclick="switchTab('prd')">PRD 文档</button>
+            <!-- 输入区域 -->
+            <div class="chat-input-wrapper">
+                <div class="input-actions">
+                    <button class="action-chip" onclick="showStepSelector()">
+                        <span>⚡</span> 指定步骤
+                    </button>
+                    <button class="action-chip" onclick="showLoadModal()">
+                        <span>📂</span> 加载项目
+                    </button>
+                </div>
+                <div class="input-box">
+                    <textarea 
+                        id="chat-input" 
+                        placeholder="输入HR业务场景或命令..."
+                        rows="1"
+                        onkeydown="handleInputKeydown(event)"
+                        oninput="autoResize(this)"
+                    ></textarea>
+                    <button class="send-btn" onclick="sendMessage()" id="send-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="input-hint">按 Enter 发送，Shift+Enter 换行</div>
+            </div>
+        </aside>
+
+        <!-- 右侧：预览区域 -->
+        <main class="preview-panel">
+            <!-- 预览工具栏 -->
+            <div class="preview-toolbar">
+                <div class="preview-tabs">
+                    <button class="preview-tab active" onclick="switchTab('html')" id="tab-html">
+                        <span>🎨</span> 原型预览
+                    </button>
+                    <button class="preview-tab" onclick="switchTab('prd')" id="tab-prd">
+                        <span>📝</span> PRD文档
+                    </button>
+                    <button class="preview-tab" onclick="switchTab('yaml')" id="tab-yaml">
+                        <span>📋</span> YAML结构
+                    </button>
+                </div>
+                <div class="preview-actions">
+                    <button class="tool-btn" onclick="downloadCurrent()" title="下载">
+                        💾 下载
+                    </button>
+                    <button class="tool-btn" onclick="toggleFullscreen()" title="全屏">
+                        🔍 全屏
+                    </button>
+                </div>
+            </div>
+
+            <!-- 预览内容区 -->
+            <div class="preview-content">
+                <!-- 原型预览 -->
+                <div class="preview-view active" id="view-html">
+                    <div class="empty-preview" id="html-empty">
+                        <div class="empty-icon">🎨</div>
+                        <h4>暂无原型预览</h4>
+                        <p>在左侧输入HR业务场景开始设计</p>
+                    </div>
+                    <iframe id="html-preview" sandbox="allow-scripts allow-same-origin" style="display: none;"></iframe>
                 </div>
 
-                <div class="tab-content">
-                    <div id="html-panel" class="panel active">
-                        <div class="panel-header">
-                            <h3>可交互原型</h3>
-                            <button onclick="downloadHTML()">下载 HTML</button>
-                        </div>
-                        <iframe id="html-preview" sandbox="allow-scripts"></iframe>
+                <!-- PRD预览 -->
+                <div class="preview-view" id="view-prd">
+                    <div class="empty-preview" id="prd-empty">
+                        <div class="empty-icon">📝</div>
+                        <h4>暂无PRD文档</h4>
+                        <p>生成原型后将自动创建PRD</p>
                     </div>
-
-                    <div id="prd-panel" class="panel">
-                        <div class="panel-header">
-                            <h3>产品需求文档</h3>
-                            <button onclick="downloadPRD()">下载 Markdown</button>
-                        </div>
-                        <pre id="prd-content"></pre>
-                    </div>
+                    <div class="prd-render" id="prd-render" style="display: none;"></div>
                 </div>
-            </section>
 
-            <section class="error-section" id="error-section" style="display: none;">
-                <div class="error-message"></div>
-            </section>
+                <!-- YAML预览 -->
+                <div class="preview-view" id="view-yaml">
+                    <div class="empty-preview" id="yaml-empty">
+                        <div class="empty-icon">📋</div>
+                        <h4>暂无YAML结构</h4>
+                        <p>生成原型后将输出结构化数据</p>
+                    </div>
+                    <pre class="yaml-render" id="yaml-render" style="display: none;"></pre>
+                </div>
+            </div>
+
+            <!-- 生成进度浮层 -->
+            <div class="progress-float" id="progress-float" style="display: none;">
+                <div class="progress-header">
+                    <span class="progress-title" id="progress-title">生成中...</span>
+                    <span class="progress-percent" id="progress-percent">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-detail" id="progress-detail"></div>
+            </div>
         </main>
-
-        <footer>
-            <p>Powered by DeepSeek via SiliconFlow | 专为HR系统设计</p>
-        </footer>
     </div>
 
-    <!-- 自定义弹窗 -->
-    <div class="modal-overlay" id="modal-overlay" style="display: none;">
-        <div class="modal-container">
+    <!-- 步骤选择器弹窗 -->
+    <div class="modal" id="step-modal" style="display: none;">
+        <div class="modal-content">
             <div class="modal-header">
-                <span class="modal-icon">💡</span>
-                <h3 id="modal-title">提示</h3>
+                <h3>⚡ 选择开始步骤</h3>
+                <button class="modal-close" onclick="closeModal('step-modal')">×</button>
             </div>
             <div class="modal-body">
-                <p id="modal-message">提示内容</p>
+                <p class="modal-tip">跳过前面的步骤，直接从指定位置开始设计：</p>
+                <div class="step-list">
+                    <div class="step-item" onclick="selectStartStep('business')">
+                        <div class="step-badge">1</div>
+                        <div class="step-content">
+                            <div class="step-name">业务理解</div>
+                            <div class="step-desc">从头开始，分析业务场景</div>
+                        </div>
+                    </div>
+                    <div class="step-item" onclick="selectStartStep('pages')">
+                        <div class="step-badge">2</div>
+                        <div class="step-content">
+                            <div class="step-name">页面拆解</div>
+                            <div class="step-desc">已有业务分析，直接设计页面</div>
+                        </div>
+                    </div>
+                    <div class="step-item" onclick="selectStartStep('components')">
+                        <div class="step-badge">3</div>
+                        <div class="step-content">
+                            <div class="step-name">组件设计</div>
+                            <div class="step-desc">已有页面结构，设计组件细节</div>
+                        </div>
+                    </div>
+                    <div class="step-item" onclick="selectStartStep('interaction')">
+                        <div class="step-badge">4</div>
+                        <div class="step-content">
+                            <div class="step-name">交互逻辑</div>
+                            <div class="step-desc">已有组件，设计交互流程</div>
+                        </div>
+                    </div>
+                    <div class="step-item" onclick="selectStartStep('prototype')">
+                        <div class="step-badge">5</div>
+                        <div class="step-content">
+                            <div class="step-name">生成原型</div>
+                            <div class="step-desc">已有完整设计，直接生成HTML</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目加载弹窗 -->
+    <div class="modal" id="load-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📂 加载已有项目</h3>
+                <button class="modal-close" onclick="closeModal('load-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="load-tabs">
+                    <button class="load-tab active" onclick="switchLoadTab('local')">本地存储</button>
+                    <button class="load-tab" onclick="switchLoadTab('file')">上传文件</button>
+                </div>
+                <div class="load-panel" id="load-local-panel">
+                    <div class="project-grid" id="project-grid">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+                <div class="load-panel" id="load-file-panel" style="display: none;">
+                    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                        <div class="upload-icon">📁</div>
+                        <p>点击或拖拽文件到此处</p>
+                        <p class="upload-hint">支持 .html, .md, .yaml, .json</p>
+                        <input type="file" id="file-input" accept=".html,.md,.yaml,.json" multiple onchange="handleFileUpload(event)">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示弹窗 -->
+    <div class="modal" id="alert-modal" style="display: none;">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3 id="alert-title">提示</h3>
+                <button class="modal-close" onclick="closeModal('alert-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="alert-message">提示内容</p>
             </div>
             <div class="modal-footer">
-                <button class="modal-btn" onclick="closeModal()">知道了</button>
+                <button class="btn-primary" onclick="closeModal('alert-modal')">知道了</button>
             </div>
         </div>
     </div>

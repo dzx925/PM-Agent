@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM Agent - 对话式原型设计助手</title>
+    <link rel="stylesheet" href="chat-style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧：对话区域 -->
+        <div class="chat-sidebar">
+            <!-- 顶部：标题和新建对话 -->
+            <div class="chat-header">
+                <div class="logo">
+                    <span class="logo-icon">🎨</span>
+                    <span class="logo-text">PM Agent</span>
+                </div>
+                <button class="new-chat-btn" onclick="startNewChat()" title="新建对话">
+                    <span>+</span>
+                </button>
+            </div>
+
+            <!-- 快捷命令区域 -->
+            <div class="quick-commands">
+                <div class="quick-command-title">快捷命令</div>
+                <div class="command-tags">
+                    <span class="cmd-tag" onclick="quickCommand('帮我设计一个员工考勤系统')">📝 设计考勤系统</span>
+                    <span class="cmd-tag" onclick="quickCommand('生成登录页面原型')">🔐 登录页面</span>
+                    <span class="cmd-tag" onclick="quickCommand('添加数据表格组件')">📊 数据表格</span>
+                    <span class="cmd-tag" onclick="quickCommand('优化UI样式')">✨ 优化样式</span>
+                </div>
+            </div>
+
+            <!-- 对话历史 -->
+            <div class="chat-history" id="chat-history">
+                <!-- 欢迎消息 -->
+                <div class="welcome-message">
+                    <div class="welcome-icon">👋</div>
+                    <h3>我是你的原型设计助手</h3>
+                    <p>你可以这样跟我交流：</p>
+                    <ul class="example-commands">
+                        <li>"<span class="highlight">帮我设计</span>一个员工管理系统"</li>
+                        <li>"<span class="highlight">修改</span>登录页，添加验证码功能"</li>
+                        <li>"<span class="highlight">从第3步开始</span>，重新设计组件"</li>
+                        <li>"<span class="highlight">加载</span>上次的原型继续修改"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="chat-input-area">
+                <div class="input-toolbar">
+                    <button class="toolbar-btn" onclick="loadExistingProject()" title="加载已有项目">
+                        📂 加载
+                    </button>
+                    <button class="toolbar-btn" onclick="showStepSelector()" title="选择开始步骤">
+                        ⚡ 从指定步骤开始
+                    </button>
+                </div>
+                <div class="input-wrapper">
+                    <textarea 
+                        id="chat-input" 
+                        placeholder="描述你的需求，或输入命令..."
+                        rows="1"
+                        onkeydown="handleInputKeydown(event)"
+                    ></textarea>
+                    <button class="send-btn" onclick="sendMessage()" id="send-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="input-hint">
+                    按 Enter 发送，Shift+Enter 换行
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：预览区域 -->
+        <div class="preview-area">
+            <!-- 预览工具栏 -->
+            <div class="preview-toolbar">
+                <div class="toolbar-tabs">
+                    <button class="tab-btn active" onclick="switchPreviewTab('prototype')" id="tab-prototype">
+                        🎨 原型预览
+                    </button>
+                    <button class="tab-btn" onclick="switchPreviewTab('prd')" id="tab-prd">
+                        📝 PRD文档
+                    </button>
+                    <button class="tab-btn" onclick="switchPreviewTab('yaml')" id="tab-yaml">
+                        📋 YAML结构
+                    </button>
+                </div>
+                <div class="toolbar-actions">
+                    <button class="action-btn" onclick="downloadCurrent()" title="下载">
+                        💾 下载
+                    </button>
+                    <button class="action-btn" onclick="toggleFullscreen()" title="全屏">
+                        🔍 全屏
+                    </button>
+                </div>
+            </div>
+
+            <!-- 预览内容 -->
+            <div class="preview-content">
+                <!-- 原型预览 -->
+                <div class="preview-panel active" id="preview-prototype">
+                    <div class="empty-state" id="prototype-empty">
+                        <div class="empty-icon">🎨</div>
+                        <p>暂无原型预览</p>
+                        <p class="empty-sub">在左侧输入需求开始设计</p>
+                    </div>
+                    <iframe id="prototype-frame" sandbox="allow-scripts allow-same-origin" style="display: none;"></iframe>
+                </div>
+
+                <!-- PRD预览 -->
+                <div class="preview-panel" id="preview-prd">
+                    <div class="empty-state" id="prd-empty">
+                        <div class="empty-icon">📝</div>
+                        <p>暂无PRD文档</p>
+                        <p class="empty-sub">生成原型后将自动创建PRD</p>
+                    </div>
+                    <div class="prd-content" id="prd-content" style="display: none;"></div>
+                </div>
+
+                <!-- YAML预览 -->
+                <div class="preview-panel" id="preview-yaml">
+                    <div class="empty-state" id="yaml-empty">
+                        <div class="empty-icon">📋</div>
+                        <p>暂无YAML结构</p>
+                        <p class="empty-sub">生成原型后将输出结构化数据</p>
+                    </div>
+                    <pre class="yaml-content" id="yaml-content" style="display: none;"></pre>
+                </div>
+            </div>
+
+            <!-- 生成进度条（浮动） -->
+            <div class="generation-progress" id="generation-progress" style="display: none;">
+                <div class="progress-info">
+                    <span class="progress-phase" id="progress-phase">准备中...</span>
+                    <span class="progress-percent" id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-steps" id="progress-steps"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤选择器弹窗 -->
+    <div class="modal-overlay" id="step-modal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>⚡ 选择开始步骤</h3>
+                <button class="modal-close" onclick="closeStepModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">跳过前面的步骤，直接从指定位置开始设计：</p>
+                <div class="step-options">
+                    <div class="step-option" onclick="startFromStep('business')">
+                        <div class="step-num">1</div>
+                        <div class="step-info">
+                            <div class="step-title">业务理解</div>
+                            <div class="step-desc">从头开始，分析业务场景</div>
+                        </div>
+                    </div>
+                    <div class="step-option" onclick="startFromStep('pages')">
+                        <div class="step-num">2</div>
+                        <div class="step-info">
+                            <div class="step-title">页面拆解</div>
+                            <div class="step-desc">已有业务分析，直接设计页面</div>
+                        </div>
+                    </div>
+                    <div class="step-option" onclick="startFromStep('components')">
+                        <div class="step-num">3</div>
+                        <div class="step-info">
+                            <div class="step-title">组件设计</div>
+                            <div class="step-desc">已有页面结构，设计组件细节</div>
+                        </div>
+                    </div>
+                    <div class="step-option" onclick="startFromStep('interaction')">
+                        <div class="step-num">4</div>
+                        <div class="step-info">
+                            <div class="step-title">交互逻辑</div>
+                            <div class="step-desc">已有组件，设计交互流程</div>
+                        </div>
+                    </div>
+                    <div class="step-option" onclick="startFromStep('prototype')">
+                        <div class="step-num">5</div>
+                        <div class="step-info">
+                            <div class="step-title">生成原型</div>
+                            <div class="step-desc">已有完整设计，直接生成HTML</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目加载弹窗 -->
+    <div class="modal-overlay" id="load-modal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>📂 加载已有项目</h3>
+                <button class="modal-close" onclick="closeLoadModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="load-tabs">
+                    <button class="load-tab active" onclick="switchLoadTab('local')">本地存储</button>
+                    <button class="load-tab" onclick="switchLoadTab('upload')">上传文件</button>
+                </div>
+                <div class="load-content" id="load-local">
+                    <div class="project-list" id="local-projects">
+                        <!-- 动态加载本地项目 -->
+                    </div>
+                </div>
+                <div class="load-content" id="load-upload" style="display: none;">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">📁</div>
+                        <p>拖拽文件到此处，或点击上传</p>
+                        <p class="upload-hint">支持 .html, .md, .yaml, .json</p>
+                        <input type="file" id="file-input" accept=".html,.md,.yaml,.json" multiple onchange="handleFileUpload(event)">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="chat-app.js"></script>
+</body>
+</html>
