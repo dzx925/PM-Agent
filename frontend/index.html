@@ -18,13 +18,70 @@
                 <label for="scene-input">业务场景描述</label>
                 <textarea 
                     id="scene-input" 
-                    placeholder="例如：帮我做一个客户管理CRM系统，包含客户信息录入、跟进记录、商机管理等功能..."
+                    placeholder="例如：帮我做个HR系统，包含员工信息、任职记录、入转调离等功能......"
                     rows="4"
                 ></textarea>
                 <button id="generate-btn" onclick="generate()">
                     <span class="btn-text">开始生成</span>
                     <span class="btn-loading" style="display: none;">生成中...</span>
                 </button>
+                
+                <!-- 进度显示区域 -->
+                <div class="progress-section" id="progress-section" style="display: none;">
+                    <div class="progress-header">
+                        <span class="progress-phase" id="progress-phase">准备生成</span>
+                        <span class="progress-percent" id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    
+                    <!-- 原型生成步骤 -->
+                    <div class="phase-title" id="prototype-phase-title" style="display: none;">
+                        <strong>🎨 原型生成</strong> <span class="phase-skill">原型-skill</span>
+                    </div>
+                    <div class="progress-steps" id="prototype-steps" style="display: none;">
+                        <div class="step" id="proto-step-1">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">业务理解 - 提炼目标用户、核心价值、主流程</span>
+                        </div>
+                        <div class="step" id="proto-step-2">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">页面拆解 - 确定所需页面/弹窗</span>
+                        </div>
+                        <div class="step" id="proto-step-3">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">组件设计 - 定义字段、控件、校验规则</span>
+                        </div>
+                        <div class="step" id="proto-step-4">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">交互逻辑 - 明确点击、跳转、弹窗、数据联动</span>
+                        </div>
+                        <div class="step" id="proto-step-5">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">生成原型 - 输出完整 HTML 文件</span>
+                        </div>
+                        <div class="step" id="proto-step-6">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">结构化输出 - 附加 YAML 说明</span>
+                        </div>
+                    </div>
+                    
+                    <!-- PRD生成步骤 -->
+                    <div class="phase-title" id="prd-phase-title" style="display: none;">
+                        <strong>📝 PRD 生成</strong> <span class="phase-skill">pm-prd-skills</span>
+                    </div>
+                    <div class="progress-steps" id="prd-steps" style="display: none;">
+                        <div class="step" id="prd-step-1">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">分析原型 - 提取功能点和页面结构</span>
+                        </div>
+                        <div class="step" id="prd-step-2">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">生成 PRD 文档</span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section class="output-section" id="output-section" style="display: none;">
