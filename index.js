@@ -304,12 +304,90 @@ function validateScene(scene) {
  * 生成 API - SSE 流式响应（支持断点续传和模式选择）
  */
 app.post('/generate', async (req, res) => {
-  const { scene, sessionId, resumeFrom = 0, mode = 'all' } = req.body;
+  const { scene, sessionId, resumeFrom = 0, mode = 'all', isModify = false, intermediateResults = {} } = req.body;
   const apiKey = process.env.OPENAI_API_KEY;
   
   // 验证 mode 参数
   const validModes = ['all', 'prototype', 'prd'];
   const generationMode = validModes.includes(mode) ? mode : 'all';
+  
+  // 如果是修改模式，直接基于现有HTML进行修改
+  if (isModify && intermediateResults?.html) {
+    console.log('修改模式：基于现有HTML直接修改');
+    
+    // 设置 SSE 头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    try {
+      // 获取 Skill 内容
+      const prototypeSkill = await getSkillContent('prototype');
+      
+      // 发送步骤列表（只显示一个"修改原型"步骤）
+      sendSSE(res, {
+        type: 'steps',
+        prototypeSteps: [{ number: 1, title: '修改原型', description: '基于现有原型进行修改' }],
+        prdSteps: []
+      });
+      
+      // 发送进度
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prototype',
+        step: 1,
+        totalSteps: 1,
+        stepData: { title: '修改原型', description: '正在应用修改...' },
+        progress: 50,
+        status: 'ai-generating'
+      });
+      
+      // 调用AI进行修改
+      const modifyPrompt = `${scene}\n\n现有HTML原型：\n\`\`\`html\n${intermediateResults.html}\n\`\`\`\n\n请基于以上原型进行修改，只调整指定的部分，保持其他部分不变。输出完整的HTML代码。`;
+      
+      const modifyResult = await callSiliconFlow(prototypeSkill, modifyPrompt, apiKey, (msg) => {
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prototype',
+          step: 1,
+          totalSteps: 1,
+          stepData: { title: '修改原型', description: msg },
+          progress: 70,
+          status: 'ai-generating'
+        });
+      });
+      
+      // 提取修改后的HTML
+      const htmlMatch = modifyResult.match(/```html\n?([\s\S]*?)```/) || 
+                        modifyResult.match(/<html[\s\S]*?<\/html>/) ||
+                        [null, modifyResult];
+      const html = htmlMatch[1] ? htmlMatch[1].trim() : modifyResult;
+      
+      // 发送结果
+      sendSSE(res, {
+        type: 'result',
+        html: html,
+        yaml: intermediateResults.yaml
+      });
+      
+      // 完成
+      sendSSE(res, {
+        type: 'complete',
+        progress: 100,
+        html: html,
+        prd: null,
+        scene: scene
+      });
+      
+      res.end();
+      return;
+    } catch (error) {
+      console.error('修改失败:', error.message);
+      sendSSE(res, { type: 'error', message: error.message });
+      res.end();
+      return;
+    }
+  }
   
   // 获取或创建任务
   const task = sessionId ? getGenerationTask(sessionId) : null;
