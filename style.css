@@ -606,10 +606,16 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     transition: all 0.3s;
+    padding: 4px 0;
 }
 
 .progress-step-item.completed {
     color: var(--text);
+}
+
+.progress-step-item.current {
+    color: var(--primary);
+    font-weight: 500;
 }
 
 .progress-step-item .step-num {
@@ -631,12 +637,29 @@ body {
     color: white;
 }
 
+.progress-step-item.current .step-num.active {
+    background: linear-gradient(135deg, #f6ad55 0%, #ed8936 100%);
+    color: white;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
 .progress-card.complete .progress-step-item.completed .step-num {
     background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
 }
 
 .progress-step-item .step-title {
     flex: 1;
+}
+
+.progress-step-item .step-status {
+    font-size: 10px;
+    color: var(--primary);
+    font-style: italic;
 }
 
 /* 旧进度浮层（保留兼容） */

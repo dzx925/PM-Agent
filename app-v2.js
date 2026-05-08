@@ -496,14 +496,22 @@ function updateProgressMessage(messageId, data) {
         progressCard.classList.add('error');
     }
     
-    // 更新步骤列表
+    // 更新步骤列表 - 显示所有步骤，包括正在进行的
     if (data.steps && stepsListEl) {
-        stepsListEl.innerHTML = data.steps.map((step, index) => `
-            <div class="progress-step-item ${step.progress <= (data.progress || 0) ? 'completed' : ''}">
-                <span class="step-num">${index + 1}</span>
-                <span class="step-title">${step.title}</span>
-            </div>
-        `).join('');
+        stepsListEl.innerHTML = data.steps.map((step, index) => {
+            const isCompleted = step.progress <= (data.progress || 0);
+            const isCurrent = step.title === data.currentStep;
+            const statusClass = isCompleted ? 'completed' : (isCurrent ? 'current' : '');
+            const statusIcon = isCompleted ? '✓' : (isCurrent ? '●' : (index + 1));
+            
+            return `
+                <div class="progress-step-item ${statusClass}">
+                    <span class="step-num ${isCompleted ? 'done' : (isCurrent ? 'active' : '')}">${statusIcon}</span>
+                    <span class="step-title">${step.title}</span>
+                    ${isCurrent ? '<span class="step-status">进行中...</span>' : ''}
+                </div>
+            `;
+        }).join('');
     }
     
     // 滚动到底部
