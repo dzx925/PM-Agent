@@ -608,7 +608,7 @@ app.post('/generate', async (req, res) => {
       return;
     }
     
-    // 阶段2: PRD生成（显示子Skill调用过程）
+    // 阶段2: PRD生成（逐个步骤处理）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prd', 
@@ -634,195 +634,253 @@ app.post('/generate', async (req, res) => {
       prdSubSteps: prdSubSteps
     });
     
-    // PRD 阶段1: 原型解析 + 业务提炼
+    // 步骤1: 原型解析
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 1,
       totalSteps: 8,
       stepData: { 
-        title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title}`, 
-        description: prdSubSteps[0].desc,
-        skill: prdSubSteps[0].skill
+        title: '原型解析', 
+        description: '提取页面结构、字段、交互、功能模块'
       },
       progress: 50,
       status: 'ai-generating'
     });
     
-    const prdBatch1Prompt = `业务场景：${scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${html.substring(0, 2000)}\n...\n\`\`\`\n\n请完成：\n1. 原型解析：提取页面结构、字段、交互、功能模块\n2. 业务提炼：补充角色、目标、痛点、业务场景\n\n输出结构化结果。`;
+    const prdStep1Prompt = `业务场景：${scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${html.substring(0, 2000)}\n...\n\`\`\`\n\n请解析上述HTML原型，提取：\n1. 页面结构\n2. 关键字段\n3. 交互逻辑\n4. 功能模块\n\n输出结构化结果。`;
     
-    const prdBatch1Result = await callSiliconFlow(prdSkill, prdBatch1Prompt, apiKey, (msg) => {
+    const prdStep1Result = await callSiliconFlow(prdSkill, prdStep1Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
         step: 1,
         totalSteps: 8,
         stepData: { 
-          title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title} - ${msg}`, 
-          description: prdSubSteps[0].desc,
-          skill: prdSubSteps[0].skill
+          title: '原型解析', 
+          description: msg
         },
         progress: 52,
         status: 'ai-generating'
       });
     });
     
-    // 标记步骤1完成，显示步骤2
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 1,
-      totalSteps: 8,
-      stepData: { 
-        title: `${prdSubSteps[0].icon} ${prdSubSteps[0].title}`, 
-        description: prdSubSteps[0].desc 
-      },
-      progress: 54,
-      status: 'completed'
-    });
-    
-    // PRD 阶段2: 业务章节 + 分析章节
+    // 步骤2: 业务提炼
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 2,
       totalSteps: 8,
       stepData: { 
-        title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title}`, 
-        description: prdSubSteps[2].desc,
-        skill: prdSubSteps[2].skill
+        title: '业务提炼', 
+        description: '补充角色、目标、痛点、业务场景'
       },
-      progress: 56,
+      progress: 54,
       status: 'ai-generating'
     });
     
-    const prdBatch2Prompt = `业务场景：${scene}\n\n前期分析：\n${prdBatch1Result.substring(0, 2000)}\n\n请生成PRD的业务章节和分析章节：\n1. 业务背景与目标\n2. 用户角色与场景\n3. 需求范围\n4. 竞品分析\n5. 核心功能点`;
+    const prdStep2Prompt = `业务场景：${scene}\n\n原型解析结果：\n${prdStep1Result.substring(0, 1500)}\n\n请基于以上解析，提炼业务信息：\n1. 目标用户角色\n2. 核心价值目标\n3. 用户痛点\n4. 具体业务场景\n\n输出结构化结果。`;
     
-    const prdBatch2Result = await callSiliconFlow(prdSkill, prdBatch2Prompt, apiKey, (msg) => {
+    const prdStep2Result = await callSiliconFlow(prdSkill, prdStep2Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
         step: 2,
         totalSteps: 8,
         stepData: { 
-          title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title} - ${msg}`, 
-          description: prdSubSteps[2].desc,
-          skill: prdSubSteps[2].skill
+          title: '业务提炼', 
+          description: msg
         },
-        progress: 60,
+        progress: 56,
         status: 'ai-generating'
       });
     });
     
-    // 标记步骤2完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 2,
-      totalSteps: 8,
-      stepData: { 
-        title: `${prdSubSteps[2].icon} ${prdSubSteps[2].title}`, 
-        description: prdSubSteps[2].desc 
-      },
-      progress: 62,
-      status: 'completed'
-    });
-    
-    // PRD 阶段3: 方案框架 + 功能模块
+    // 步骤3: 业务章节
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 3,
       totalSteps: 8,
       stepData: { 
-        title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title}`, 
-        description: prdSubSteps[4].desc,
-        skill: prdSubSteps[4].skill
+        title: '业务章节', 
+        description: '编写业务背景、目标、范围'
       },
-      progress: 64,
+      progress: 58,
       status: 'ai-generating'
     });
     
-    const prdBatch3Prompt = `业务场景：${scene}\n\n前期分析：\n${prdBatch1Result.substring(0, 1500)}\n\n业务章节：\n${prdBatch2Result.substring(0, 1500)}\n\n请生成：\n1. 方案框架（系统架构、模块划分）\n2. 各功能模块详细设计\n3. 数据模型设计`;
+    const prdStep3Prompt = `业务场景：${scene}\n\n业务提炼：\n${prdStep2Result.substring(0, 1500)}\n\n请编写PRD的业务章节：\n1. 业务背景\n2. 业务目标\n3. 需求范围\n4. 用户角色\n\n输出结构化结果。`;
     
-    const prdBatch3Result = await callSiliconFlow(prdSkill, prdBatch3Prompt, apiKey, (msg) => {
+    const prdStep3Result = await callSiliconFlow(prdSkill, prdStep3Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
         step: 3,
         totalSteps: 8,
         stepData: { 
-          title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title} - ${msg}`, 
-          description: prdSubSteps[4].desc,
-          skill: prdSubSteps[4].skill
+          title: '业务章节', 
+          description: msg
         },
-        progress: 70,
+        progress: 62,
         status: 'ai-generating'
       });
     });
     
-    // 标记步骤3完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 3,
-      totalSteps: 8,
-      stepData: { 
-        title: `${prdSubSteps[4].icon} ${prdSubSteps[4].title}`, 
-        description: prdSubSteps[4].desc 
-      },
-      progress: 72,
-      status: 'completed'
-    });
-    
-    // PRD 阶段4: 方案合并 + PRD优化
+    // 步骤4: 分析章节
     sendSSE(res, {
       type: 'progress',
       phase: 'prd',
       step: 4,
       totalSteps: 8,
       stepData: { 
-        title: `${prdSubSteps[6].icon} ${prdSubSteps[6].title} + ${prdSubSteps[7].title}`, 
-        description: `${prdSubSteps[6].desc}，${prdSubSteps[7].desc}`,
-        skill: `${prdSubSteps[6].skill}, ${prdSubSteps[7].skill}`
+        title: '分析章节', 
+        description: '竞品分析、核心功能点'
       },
-      progress: 80,
+      progress: 64,
       status: 'ai-generating'
     });
     
-    const prdBatch4Prompt = `业务场景：${scene}\n\n业务章节：\n${prdBatch2Result.substring(0, 1000)}\n\n方案设计：\n${prdBatch3Result.substring(0, 1500)}\n\n请完成PRD剩余部分：\n1. 准备章节（环境、数据、风险）\n2. 计划章节（里程碑、排期）\n3. 合并所有内容，优化格式\n4. 输出完整PRD（Markdown格式）`;
+    const prdStep4Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 1500)}\n\n请编写PRD的分析章节：\n1. 竞品分析\n2. 核心功能点\n3. 差异化优势\n\n输出结构化结果。`;
     
-    const prdFinalResult = await callSiliconFlow(prdSkill, prdBatch4Prompt, apiKey, (msg) => {
+    const prdStep4Result = await callSiliconFlow(prdSkill, prdStep4Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
         step: 4,
         totalSteps: 8,
         stepData: { 
-          title: `${prdSubSteps[6].icon} ${prdSubSteps[6].title} + ${prdSubSteps[7].title} - ${msg}`, 
-          description: `${prdSubSteps[6].desc}，${prdSubSteps[7].desc}`,
-          skill: `${prdSubSteps[6].skill}, ${prdSubSteps[7].skill}`
+          title: '分析章节', 
+          description: msg
         },
-        progress: 90,
+        progress: 68,
         status: 'ai-generating'
       });
     });
     
-    // 标记所有PRD步骤完成
-    for (let i = 4; i <= 8; i++) {
+    // 步骤5: 方案框架
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 5,
+      totalSteps: 8,
+      stepData: { 
+        title: '方案框架', 
+        description: '构建系统架构、模块划分'
+      },
+      progress: 70,
+      status: 'ai-generating'
+    });
+    
+    const prdStep5Prompt = `业务场景：${scene}\n\n分析章节：\n${prdStep4Result.substring(0, 1500)}\n\n请设计方案框架：\n1. 系统架构\n2. 模块划分\n3. 技术选型\n\n输出结构化结果。`;
+    
+    const prdStep5Result = await callSiliconFlow(prdSkill, prdStep5Prompt, apiKey, (msg) => {
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
-        step: i,
+        step: 5,
         totalSteps: 8,
         stepData: { 
-          title: i < prdSubSteps.length ? `${prdSubSteps[i-1]?.icon || '✅'} ${prdSubSteps[i-1]?.title || '完成'}` : '✅ 完成', 
-          description: prdSubSteps[i-1]?.desc || '' 
+          title: '方案框架', 
+          description: msg
         },
-        progress: 90 + Math.round((i / 8) * 8),
-        status: 'completed'
+        progress: 74,
+        status: 'ai-generating'
       });
-    }
+    });
+    
+    // 步骤6: 功能模块
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 6,
+      totalSteps: 8,
+      stepData: { 
+        title: '功能模块', 
+        description: '生成各模块详细设计'
+      },
+      progress: 76,
+      status: 'ai-generating'
+    });
+    
+    const prdStep6Prompt = `业务场景：${scene}\n\n方案框架：\n${prdStep5Result.substring(0, 1500)}\n\n请设计各功能模块：\n1. 模块详细设计\n2. 接口定义\n3. 数据模型\n\n输出结构化结果。`;
+    
+    const prdStep6Result = await callSiliconFlow(prdSkill, prdStep6Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 6,
+        totalSteps: 8,
+        stepData: { 
+          title: '功能模块', 
+          description: msg
+        },
+        progress: 80,
+        status: 'ai-generating'
+      });
+    });
+    
+    // 步骤7: 方案合并
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 7,
+      totalSteps: 8,
+      stepData: { 
+        title: '方案合并', 
+        description: '合并框架和模块'
+      },
+      progress: 82,
+      status: 'ai-generating'
+    });
+    
+    const prdStep7Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 800)}\n\n分析章节：\n${prdStep4Result.substring(0, 800)}\n\n方案框架：\n${prdStep5Result.substring(0, 800)}\n\n功能模块：\n${prdStep6Result.substring(0, 800)}\n\n请合并以上内容，形成完整的PRD文档结构。`;
+    
+    const prdStep7Result = await callSiliconFlow(prdSkill, prdStep7Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 7,
+        totalSteps: 8,
+        stepData: { 
+          title: '方案合并', 
+          description: msg
+        },
+        progress: 86,
+        status: 'ai-generating'
+      });
+    });
+    
+    // 步骤8: PRD优化
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 8,
+      totalSteps: 8,
+      stepData: { 
+        title: 'PRD优化', 
+        description: '质量检查、格式优化'
+      },
+      progress: 88,
+      status: 'ai-generating'
+    });
+    
+    const prdStep8Prompt = `业务场景：${scene}\n\n合并后的PRD：\n${prdStep7Result.substring(0, 2000)}\n\n请优化PRD文档：\n1. 质量检查\n2. 格式优化\n3. 输出完整PRD（Markdown格式）`;
+    
+    const prdFinalResult = await callSiliconFlow(prdSkill, prdStep8Prompt, apiKey, (msg) => {
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 8,
+        totalSteps: 8,
+        stepData: { 
+          title: 'PRD优化', 
+          description: msg
+        },
+        progress: 92,
+        status: 'ai-generating'
+      });
+    });
     
     // 提取 PRD
     const prdMatch = prdFinalResult.match(/```markdown\n?([\s\S]*?)```/) || 
