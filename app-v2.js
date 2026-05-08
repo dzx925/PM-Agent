@@ -230,7 +230,8 @@ async function handleModify(command) {
     
     const modifyPrompt = `[修改需求] ${command.raw}\n\n现有原型HTML：\n${state.intermediateResults.html?.substring(0, 2000) || ''}\n\n请基于以上原型进行修改，只调整指定的部分。`;
     
-    await startGeneration(modifyPrompt, true);
+    // 使用当前的生成模式（保持只生成原型或全部生成）
+    await startGeneration(modifyPrompt, true, state.generationMode);
 }
 
 function handleStartFromStep(command) {
