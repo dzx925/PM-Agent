@@ -193,21 +193,15 @@ let currentProgressMessageId = null;
 // 步骤记录
 let generationSteps = [];
 
-// 预定义的生成步骤（用于显示完整步骤列表）
-const PREDEFINED_STEPS = [
-    { title: '业务理解', description: '分析业务场景和用户需求', progress: 10 },
-    { title: '页面拆解', description: '确定所需页面和弹窗结构', progress: 25 },
-    { title: '组件设计', description: '设计字段、控件和校验规则', progress: 40 },
-    { title: '交互逻辑', description: '定义点击、跳转、数据联动', progress: 60 },
-    { title: '生成原型', description: '输出完整HTML文件', progress: 80 },
-    { title: '生成PRD文档', description: '输出产品需求文档', progress: 95 }
-];
+// 后端发送的完整步骤列表
+let allStepsFromBackend = [];
 
 async function startGeneration(scene, isModify = false) {
     state.isGenerating = true;
     generationSteps = [];
+    allStepsFromBackend = []; // 重置步骤列表
     
-    // 创建进度消息卡片
+    // 创建进度消息卡片（初始为空步骤列表）
     currentProgressMessageId = addProgressMessage();
     
     try {
@@ -275,6 +269,17 @@ async function startGeneration(scene, isModify = false) {
 
 function handleSSEData(data) {
     switch (data.type) {
+        case 'steps':
+            // 接收后端发送的完整步骤列表
+            if (data.prototypeSteps || data.prdSteps) {
+                allStepsFromBackend = [
+                    ...(data.prototypeSteps || []),
+                    ...(data.prdSteps || [])
+                ];
+                // 初始化显示所有步骤（未开始状态）
+                initProgressSteps(currentProgressMessageId, allStepsFromBackend);
+            }
+            break;
         case 'progress':
             // 记录步骤
             if (data.stepData?.title && !generationSteps.find(s => s.title === data.stepData.title)) {
@@ -460,15 +465,6 @@ function addProgressMessage() {
     div.className = 'message assistant progress-message';
     div.id = messageId;
     
-    // 初始化步骤列表HTML（显示所有预定义步骤）
-    const stepsHtml = PREDEFINED_STEPS.map((step, index) => `
-        <div class="progress-step-item" data-step="${index}">
-            <span class="step-num">${index + 1}</span>
-            <span class="step-title">${step.title}</span>
-            <span class="step-status"></span>
-        </div>
-    `).join('');
-    
     div.innerHTML = `
         <div class="message-avatar">🤖</div>
         <div class="message-body">
@@ -481,9 +477,7 @@ function addProgressMessage() {
                     <div class="progress-bar-fill" style="width: 0%"></div>
                 </div>
                 <div class="progress-current-step">准备开始...</div>
-                <div class="progress-steps-list">
-                    ${stepsHtml}
-                </div>
+                <div class="progress-steps-list"></div>
             </div>
             <div class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
@@ -493,6 +487,30 @@ function addProgressMessage() {
     container.scrollTop = container.scrollHeight;
     
     return messageId;
+}
+
+// 初始化步骤列表（接收后端发送的所有步骤）
+function initProgressSteps(messageId, steps) {
+    const messageEl = document.getElementById(messageId);
+    if (!messageEl) return;
+    
+    const stepsListEl = messageEl.querySelector('.progress-steps-list');
+    if (!stepsListEl) return;
+    
+    // 生成步骤HTML（全部显示为未开始状态）
+    const stepsHtml = steps.map((step, index) => `
+        <div class="progress-step-item" data-step-title="${step.title}">
+            <span class="step-num">${index + 1}</span>
+            <span class="step-title">${step.title}</span>
+            <span class="step-status"></span>
+        </div>
+    `).join('');
+    
+    stepsListEl.innerHTML = stepsHtml;
+    
+    // 滚动到底部
+    const container = document.getElementById('chat-messages');
+    if (container) container.scrollTop = container.scrollHeight;
 }
 
 function updateProgressMessage(messageId, data) {
@@ -529,17 +547,22 @@ function updateProgressMessage(messageId, data) {
     
     // 更新步骤列表 - 根据当前进度更新每个步骤的状态
     const stepItems = progressCard.querySelectorAll('.progress-step-item');
+    
+    // 如果没有后端步骤，使用 generationSteps
+    const stepsToRender = allStepsFromBackend.length > 0 ? allStepsFromBackend : generationSteps;
+    
     stepItems.forEach((item, index) => {
-        const step = PREDEFINED_STEPS[index];
+        const step = stepsToRender[index];
         if (!step) return;
         
         const stepNum = item.querySelector('.step-num');
         const stepStatus = item.querySelector('.step-status');
         
         // 判断步骤状态
-        const isCompleted = data.progress >= step.progress;
-        const isCurrent = data.currentStep === step.title || 
-                         (data.progress >= step.progress - 5 && data.progress < step.progress + 10);
+        // 如果当前步骤标题匹配，或者是根据进度估算
+        const isCurrent = data.currentStep === step.title;
+        const isCompleted = generationSteps.find(s => s.title === step.title) ||
+                           (data.progress >= 95 && index < stepItems.length - 1);
         
         // 更新样式
         item.classList.remove('completed', 'current');
