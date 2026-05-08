@@ -627,24 +627,18 @@ function updateProgressMessage(messageId, data) {
     }
     
     // 更新状态
-    if (data.status === 'complete' && statusEl) {
+    if ((data.status === 'complete' || data.progress >= 100) && statusEl) {
         statusEl.textContent = '✅ 生成完成';
         progressCard.classList.add('complete');
-        // 隐藏停止按钮
-        const stopBtn = progressCard.querySelector('.stop-btn');
-        if (stopBtn) stopBtn.style.display = 'none';
+        // 更新进度条为100%
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressPercent) progressPercent.textContent = '100%';
     } else if (data.status === 'error' && statusEl) {
         statusEl.textContent = '❌ 生成失败';
         progressCard.classList.add('error');
-        // 隐藏停止按钮
-        const stopBtn = progressCard.querySelector('.stop-btn');
-        if (stopBtn) stopBtn.style.display = 'none';
     } else if (data.status === 'stopped' && statusEl) {
         statusEl.textContent = '⏹ 已停止';
         progressCard.classList.add('stopped');
-        // 隐藏停止按钮
-        const stopBtn = progressCard.querySelector('.stop-btn');
-        if (stopBtn) stopBtn.style.display = 'none';
     }
     
     // 更新步骤列表 - 根据当前进度更新每个步骤的状态
