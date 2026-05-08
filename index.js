@@ -349,11 +349,31 @@ app.post('/generate', async (req, res) => {
     ]);
     
     // 解析步骤
-    const prototypeSteps = parseSkillSteps(prototypeSkill);
-    const prdSteps = parseSkillSteps(prdSkill);
+    let prototypeSteps = parseSkillSteps(prototypeSkill);
+    let prdSteps = parseSkillSteps(prdSkill);
     
+    console.log('原型步骤数量:', prototypeSteps.length);
     console.log('原型步骤:', prototypeSteps.map(s => s.title));
+    console.log('PRD步骤数量:', prdSteps.length);
     console.log('PRD步骤:', prdSteps.map(s => s.title));
+    
+    // 如果步骤为空，可能是解析失败，使用备用步骤
+    if (prototypeSteps.length === 0) {
+      console.warn('原型步骤解析为空，使用备用步骤');
+      prototypeSteps = [
+        { number: 1, title: '需求理解', description: '理解业务场景和需求' },
+        { number: 2, title: '页面规划', description: '规划页面结构和布局' },
+        { number: 3, title: '组件设计', description: '设计页面组件和交互' },
+        { number: 4, title: '原型生成', description: '生成高保真原型' }
+      ];
+    }
+    if (prdSteps.length === 0) {
+      console.warn('PRD步骤解析为空，使用备用步骤');
+      prdSteps = [
+        { number: 1, title: '原型解析', description: '解析原型结构' },
+        { number: 2, title: 'PRD生成', description: '生成PRD文档' }
+      ];
+    }
     
     // 如果只生成PRD，检查是否有已有原型
     let existingHtml = null;

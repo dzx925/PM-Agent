@@ -339,11 +339,13 @@ function handleSSEData(data) {
     switch (data.type) {
         case 'steps':
             // 接收后端发送的完整步骤列表
+            console.log('接收到步骤消息:', data);
             if (data.prototypeSteps || data.prdSteps) {
                 allStepsFromBackend = [
                     ...(data.prototypeSteps || []),
                     ...(data.prdSteps || [])
                 ];
+                console.log('初始化步骤列表:', allStepsFromBackend);
                 // 初始化显示所有步骤（未开始状态）
                 initProgressSteps(currentProgressMessageId, allStepsFromBackend);
             }
