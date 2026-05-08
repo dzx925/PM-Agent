@@ -643,10 +643,19 @@ function updateProgressMessage(messageId, data) {
         const stepStatus = item.querySelector('.step-status');
         
         // 判断步骤状态
-        // 如果当前步骤标题匹配，或者是根据进度估算
-        const isCurrent = data.currentStep === step.title;
-        const isCompleted = generationSteps.find(s => s.title === step.title) ||
-                           (data.progress >= 95 && index < stepItems.length - 1);
+        // 检查当前步骤标题是否包含步骤名称（因为后端可能发送带描述的标题）
+        const isCurrent = data.currentStep && (
+            data.currentStep === step.title || 
+            data.currentStep.includes(step.title) ||
+            step.title.includes(data.currentStep)
+        );
+        
+        // 检查是否已完成（在 generationSteps 中或者进度超过当前步骤）
+        const isCompleted = generationSteps.find(s => 
+            s.title === step.title || 
+            s.title.includes(step.title) ||
+            step.title.includes(s.title)
+        ) || (data.progress >= 95 && index < stepItems.length - 1);
         
         // 更新样式
         item.classList.remove('completed', 'current');
