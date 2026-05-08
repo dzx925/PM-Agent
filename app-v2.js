@@ -27,6 +27,32 @@ const SKILL_STEPS = {
     prototype: { num: 5, name: '生成原型', description: '输出完整HTML文件' }
 };
 
+// 生成模式识别
+const GENERATION_MODES = {
+    prototype: {
+        patterns: [
+            /只生成原型|只要原型|不需要PRD|不用PRD/i
+        ]
+    },
+    prd: {
+        patterns: [
+            /只生成PRD|只要PRD|只要文档|不需要原型|不用原型/i
+        ]
+    }
+};
+
+// 识别生成模式
+function detectGenerationMode(message) {
+    for (const [mode, config] of Object.entries(GENERATION_MODES)) {
+        for (const pattern of config.patterns) {
+            if (pattern.test(message)) {
+                return mode;
+            }
+        }
+    }
+    return 'all'; // 默认全部生成
+}
+
 // 命令模式定义
 const COMMAND_PATTERNS = {
     design: {
@@ -142,15 +168,19 @@ async function handleDesign(command) {
         return;
     }
     
+    // 识别生成模式
+    const mode = detectGenerationMode(command.raw);
+    const modeText = mode === 'prototype' ? '（仅生成原型）' : mode === 'prd' ? '（仅生成PRD）' : '';
+    
     // 确认消息
     const stepInfo = state.startFromStep 
         ? `（从「${SKILL_STEPS[state.startFromStep].name}」开始）` 
         : '';
     
-    addMessage('assistant', `收到！我来帮你设计「${scene.substring(0, 30)}...」${stepInfo}\n\n开始生成，请稍候...`);
+    addMessage('assistant', `收到！我来帮你设计「${scene.substring(0, 30)}...」${stepInfo}${modeText}\n\n开始生成，请稍候...`);
     
     // 开始生成
-    await startGeneration(scene);
+    await startGeneration(scene, false, mode);
 }
 
 async function handleModify(command) {
@@ -196,7 +226,7 @@ let generationSteps = [];
 // 后端发送的完整步骤列表
 let allStepsFromBackend = [];
 
-async function startGeneration(scene, isModify = false) {
+async function startGeneration(scene, isModify = false, mode = 'all') {
     state.isGenerating = true;
     generationSteps = [];
     allStepsFromBackend = []; // 重置步骤列表
@@ -213,7 +243,8 @@ async function startGeneration(scene, isModify = false) {
                 sessionId: state.sessionId,
                 startFromStep: state.startFromStep,
                 intermediateResults: state.intermediateResults,
-                isModify
+                isModify,
+                mode
             })
         });
         

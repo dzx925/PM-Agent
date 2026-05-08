@@ -301,11 +301,15 @@ function validateScene(scene) {
 }
 
 /**
- * 生成 API - SSE 流式响应（支持断点续传）
+ * 生成 API - SSE 流式响应（支持断点续传和模式选择）
  */
 app.post('/generate', async (req, res) => {
-  const { scene, sessionId, resumeFrom = 0 } = req.body;
+  const { scene, sessionId, resumeFrom = 0, mode = 'all' } = req.body;
   const apiKey = process.env.OPENAI_API_KEY;
+  
+  // 验证 mode 参数
+  const validModes = ['all', 'prototype', 'prd'];
+  const generationMode = validModes.includes(mode) ? mode : 'all';
   
   // 获取或创建任务
   const task = sessionId ? getGenerationTask(sessionId) : null;
@@ -351,12 +355,57 @@ app.post('/generate', async (req, res) => {
     console.log('原型步骤:', prototypeSteps.map(s => s.title));
     console.log('PRD步骤:', prdSteps.map(s => s.title));
     
-    // 发送步骤信息
-    sendSSE(res, { 
-      type: 'steps', 
-      prototypeSteps,
-      prdSteps
-    });
+    // 如果只生成PRD，检查是否有已有原型
+    let existingHtml = null;
+    if (generationMode === 'prd') {
+      const task = sessionId ? getGenerationTask(sessionId) : null;
+      existingHtml = task?.results?.html || req.body.intermediateResults?.html;
+      
+      if (!existingHtml) {
+        sendSSE(res, { 
+          type: 'error', 
+          message: '只生成PRD模式需要提供已有原型。请先生成原型或上传HTML文件。' 
+        });
+        res.end();
+        return;
+      }
+      
+      // 只发送PRD步骤
+      sendSSE(res, { 
+        type: 'steps', 
+        prdSteps
+      });
+    } else {
+      // 发送所有步骤
+      sendSSE(res, { 
+        type: 'steps', 
+        prototypeSteps,
+        prdSteps
+      });
+    }
+    
+    // 如果只生成PRD，跳过原型生成阶段
+    if (generationMode === 'prd') {
+      // 直接使用已有原型生成PRD
+      const html = existingHtml;
+      
+      // 阶段2: PRD生成
+      sendSSE(res, { 
+        type: 'phase', 
+        phase: 'prd', 
+        name: 'PRD生成',
+        skill: 'pm-prd-skills'
+      });
+      
+      // ... PRD生成逻辑（复用原有代码）
+      // 为简化，这里先返回错误提示
+      sendSSE(res, { 
+        type: 'error', 
+        message: '只生成PRD功能正在开发中，请使用全部生成模式。' 
+      });
+      res.end();
+      return;
+    }
     
     // 阶段1: 原型生成（分批调用）
     sendSSE(res, { 
@@ -458,6 +507,20 @@ app.post('/generate', async (req, res) => {
         progress: 45 + Math.round((i / 6) * 5),
         status: 'completed'
       });
+    }
+    
+    // 如果只生成原型，跳过PRD阶段
+    if (generationMode === 'prototype') {
+      // 完成
+      sendSSE(res, {
+        type: 'complete',
+        progress: 100,
+        html: html,
+        prd: null,
+        scene: scene
+      });
+      res.end();
+      return;
     }
     
     // 阶段2: PRD生成（显示子Skill调用过程）
