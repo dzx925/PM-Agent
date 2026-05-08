@@ -528,14 +528,17 @@ function initProgressSteps(messageId, steps) {
     const stepsListEl = messageEl.querySelector('.progress-steps-list');
     if (!stepsListEl) return;
     
-    // 生成步骤HTML（全部显示为未开始状态）
-    const stepsHtml = steps.map((step, index) => `
-        <div class="progress-step-item" data-step-title="${step.title}">
-            <span class="step-num">${index + 1}</span>
-            <span class="step-title">${step.title}</span>
-            <span class="step-status"></span>
-        </div>
-    `).join('');
+    // 生成步骤HTML（第一个标记为进行中，其余未开始）
+    const stepsHtml = steps.map((step, index) => {
+        const isFirst = index === 0;
+        return `
+            <div class="progress-step-item ${isFirst ? 'current' : ''}" data-step-title="${step.title}">
+                <span class="step-num ${isFirst ? 'active' : ''}">${isFirst ? '●' : index + 1}</span>
+                <span class="step-title">${step.title}</span>
+                <span class="step-status">${isFirst ? '进行中...' : ''}</span>
+            </div>
+        `;
+    }).join('');
     
     stepsListEl.innerHTML = stepsHtml;
     
