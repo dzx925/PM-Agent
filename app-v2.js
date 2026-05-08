@@ -229,21 +229,32 @@ async function startGeneration(scene, isModify = false) {
         
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = ''; // SSE 数据缓冲区
         
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             
             const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            buffer += chunk;
             
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        handleSSEData(data);
-                    } catch (e) {
-                        console.error('解析SSE失败:', e, line);
+            // 处理完整的 SSE 消息（以\n\n结尾）
+            const messages = buffer.split('\n\n');
+            buffer = messages.pop(); // 保留不完整的部分
+            
+            for (const message of messages) {
+                const lines = message.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.slice(6);
+                        // 跳过 [DONE] 标记
+                        if (jsonStr === '[DONE]') continue;
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            handleSSEData(data);
+                        } catch (e) {
+                            console.error('解析SSE失败:', e, '内容:', jsonStr.substring(0, 200));
+                        }
                     }
                 }
             }
