@@ -331,7 +331,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .send-btn:hover {
@@ -341,6 +342,20 @@ body {
 .send-btn svg {
     width: 16px;
     height: 16px;
+}
+
+/* 停止模式样式 */
+.send-btn.stop-mode {
+    background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+    animation: pulse 1.5s infinite;
+}
+
+.send-btn.stop-mode:hover {
+    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
+.send-btn .stop-icon {
+    font-size: 14px;
 }
 
 .input-hint {
@@ -660,6 +675,48 @@ body {
     font-size: 10px;
     color: var(--primary);
     font-style: italic;
+}
+
+/* 停止按钮 */
+.progress-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #cbd5e0;
+    display: flex;
+    justify-content: center;
+}
+
+.stop-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #fff5f5;
+    border: 1px solid #fc8181;
+    border-radius: 6px;
+    color: #c53030;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stop-btn:hover {
+    background: #fed7d7;
+    border-color: #f56565;
+}
+
+.stop-btn span {
+    font-size: 14px;
+}
+
+/* 已停止状态 */
+.progress-card.stopped {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+    border-color: #fc8181;
+}
+
+.progress-card.stopped .progress-status {
+    color: #c53030;
 }
 
 /* 旧进度浮层（保留兼容） */

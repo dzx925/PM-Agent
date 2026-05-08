@@ -108,6 +108,38 @@ function generateSessionId() {
 
 // ========== 对话功能 ==========
 
+// 发送或停止按钮处理
+function handleSendOrStop() {
+    if (state.isGenerating) {
+        stopGeneration(currentProgressMessageId);
+    } else {
+        sendMessage();
+    }
+}
+
+// 更新发送按钮状态（生成中显示停止，否则显示发送）
+function updateSendButtonState() {
+    const sendBtn = document.getElementById('send-btn');
+    const sendIcon = sendBtn?.querySelector('.send-icon');
+    const stopIcon = sendBtn?.querySelector('.stop-icon');
+    
+    if (!sendBtn) return;
+    
+    if (state.isGenerating) {
+        // 生成中 - 显示停止按钮
+        sendBtn.classList.add('stop-mode');
+        if (sendIcon) sendIcon.style.display = 'none';
+        if (stopIcon) stopIcon.style.display = 'inline';
+        sendBtn.title = '停止生成';
+    } else {
+        // 未生成 - 显示发送按钮
+        sendBtn.classList.remove('stop-mode');
+        if (sendIcon) sendIcon.style.display = 'block';
+        if (stopIcon) stopIcon.style.display = 'none';
+        sendBtn.title = '发送';
+    }
+}
+
 function sendMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
@@ -118,6 +150,9 @@ function sendMessage() {
     addMessage('user', message);
     input.value = '';
     autoResize(input);
+    
+    // 更新按钮状态
+    updateSendButtonState();
     
     // 解析并执行命令
     const command = parseCommand(message);
@@ -295,6 +330,8 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
     } finally {
         state.isGenerating = false;
         saveState();
+        // 更新按钮状态为发送
+        updateSendButtonState();
     }
 }
 
@@ -386,6 +423,9 @@ function handleComplete(data) {
     
     // 重置开始步骤
     state.startFromStep = null;
+    
+    // 更新按钮状态为发送
+    updateSendButtonState();
 }
 
 // ========== 消息显示 ==========
@@ -574,9 +614,21 @@ function updateProgressMessage(messageId, data) {
     if (data.status === 'complete' && statusEl) {
         statusEl.textContent = '✅ 生成完成';
         progressCard.classList.add('complete');
+        // 隐藏停止按钮
+        const stopBtn = progressCard.querySelector('.stop-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
     } else if (data.status === 'error' && statusEl) {
         statusEl.textContent = '❌ 生成失败';
         progressCard.classList.add('error');
+        // 隐藏停止按钮
+        const stopBtn = progressCard.querySelector('.stop-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
+    } else if (data.status === 'stopped' && statusEl) {
+        statusEl.textContent = '⏹ 已停止';
+        progressCard.classList.add('stopped');
+        // 隐藏停止按钮
+        const stopBtn = progressCard.querySelector('.stop-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
     }
     
     // 更新步骤列表 - 根据当前进度更新每个步骤的状态
@@ -629,6 +681,32 @@ function updateProgressMessage(messageId, data) {
     // 滚动到底部
     const container = document.getElementById('chat-messages');
     if (container) container.scrollTop = container.scrollHeight;
+}
+
+// 停止生成
+async function stopGeneration(messageId) {
+    if (!state.isGenerating) return;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/pause`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: state.sessionId })
+        });
+        
+        if (response.ok) {
+            state.isGenerating = false;
+            updateProgressMessage(messageId, {
+                status: 'stopped',
+                progress: 0
+            });
+            // 更新按钮状态为发送
+            updateSendButtonState();
+            addMessage('assistant', '⏹ 已停止生成。你可以修改需求后重新生成。');
+        }
+    } catch (error) {
+        console.error('停止生成失败:', error);
+    }
 }
 
 // ========== 标签切换 ==========
