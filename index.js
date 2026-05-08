@@ -602,6 +602,13 @@ app.post('/generate', async (req, res) => {
                       [null, batch3Result];
     const html = htmlMatch[1] ? htmlMatch[1].trim() : batch3Result;
     
+    // 发送HTML结果
+    sendSSE(res, {
+      type: 'result',
+      html: html,
+      yaml: step6Result
+    });
+    
     // 如果只生成原型，跳过PRD阶段
     if (generationMode === 'prototype') {
       // 完成
