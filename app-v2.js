@@ -266,6 +266,9 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
     generationSteps = [];
     allStepsFromBackend = []; // 重置步骤列表
     
+    // 更新按钮状态为停止按钮
+    updateSendButtonState();
+    
     // 创建进度消息卡片（初始为空步骤列表）
     currentProgressMessageId = addProgressMessage();
     
