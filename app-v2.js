@@ -9,6 +9,7 @@ const state = {
     isGenerating: false,
     sessionId: generateSessionId(),
     startFromStep: null,
+    generationMode: 'all', // 'all', 'prototype', 'prd'
     intermediateResults: {
         batch1Result: null,
         batch2Result: null,
@@ -205,6 +206,7 @@ async function handleDesign(command) {
     
     // 识别生成模式
     const mode = detectGenerationMode(command.raw);
+    state.generationMode = mode; // 记录生成模式
     const modeText = mode === 'prototype' ? '（仅生成原型）' : mode === 'prd' ? '（仅生成PRD）' : '';
     
     // 确认消息
@@ -422,7 +424,17 @@ function handleComplete(data) {
     saveProject(project);
     state.currentProject = project;
     
-    addMessage('assistant', `✅ 生成完成！\n\n已为你生成：\n🎨 HTML原型\n📝 PRD文档\n📋 YAML结构\n\n你可以在右侧预览，也可以下载使用。`);
+    // 根据生成模式显示不同的完成消息
+    let generatedItems = '';
+    if (state.generationMode === 'prototype') {
+        generatedItems = '🎨 HTML原型';
+    } else if (state.generationMode === 'prd') {
+        generatedItems = '📝 PRD文档';
+    } else {
+        generatedItems = '🎨 HTML原型\n📝 PRD文档\n📋 YAML结构';
+    }
+    
+    addMessage('assistant', `✅ 生成完成！\n\n已为你生成：\n${generatedItems}\n\n你可以在右侧预览，也可以下载使用。`);
     
     // 重置开始步骤
     state.startFromStep = null;
