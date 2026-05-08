@@ -31,7 +31,7 @@ const SKILL_STEPS = {
 const GENERATION_MODES = {
     prototype: {
         patterns: [
-            /只生成原型|只要原型|不需要PRD|不用PRD/i
+            /只[画做]原型|只要原型|不需要PRD|不用PRD|只画页面/i
         ]
     },
     prd: {
