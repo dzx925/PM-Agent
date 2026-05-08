@@ -403,8 +403,6 @@ function handleSSEData(data) {
 }
 
 function handleComplete(data) {
-    updateProgress(100, '完成');
-    
     // 保存项目
     const project = {
         id: 'proj_' + Date.now(),
