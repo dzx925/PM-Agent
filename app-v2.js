@@ -411,14 +411,24 @@ function handleSSEData(data) {
 }
 
 function handleComplete(data) {
+    // 优先使用 data 中的结果，如果没有则使用 state.intermediateResults
+    const html = data.html || state.intermediateResults.html;
+    const yaml = data.yaml || state.intermediateResults.yaml;
+    const prd = data.prd || state.intermediateResults.prd;
+    
+    // 更新 state.intermediateResults
+    if (html) state.intermediateResults.html = html;
+    if (yaml) state.intermediateResults.yaml = yaml;
+    if (prd) state.intermediateResults.prd = prd;
+    
     // 保存项目
     const project = {
         id: 'proj_' + Date.now(),
         name: data.scene?.substring(0, 30) || '未命名项目',
         scene: data.scene,
-        html: state.intermediateResults.html,
-        yaml: state.intermediateResults.yaml,
-        prd: state.intermediateResults.prd,
+        html: html,
+        yaml: yaml,
+        prd: prd,
         createdAt: new Date().toISOString()
     };
     
