@@ -193,6 +193,16 @@ let currentProgressMessageId = null;
 // 步骤记录
 let generationSteps = [];
 
+// 预定义的生成步骤（用于显示完整步骤列表）
+const PREDEFINED_STEPS = [
+    { title: '业务理解', description: '分析业务场景和用户需求', progress: 10 },
+    { title: '页面拆解', description: '确定所需页面和弹窗结构', progress: 25 },
+    { title: '组件设计', description: '设计字段、控件和校验规则', progress: 40 },
+    { title: '交互逻辑', description: '定义点击、跳转、数据联动', progress: 60 },
+    { title: '生成原型', description: '输出完整HTML文件', progress: 80 },
+    { title: '生成PRD文档', description: '输出产品需求文档', progress: 95 }
+];
+
 async function startGeneration(scene, isModify = false) {
     state.isGenerating = true;
     generationSteps = [];
@@ -439,6 +449,15 @@ function addProgressMessage() {
     div.className = 'message assistant progress-message';
     div.id = messageId;
     
+    // 初始化步骤列表HTML（显示所有预定义步骤）
+    const stepsHtml = PREDEFINED_STEPS.map((step, index) => `
+        <div class="progress-step-item" data-step="${index}">
+            <span class="step-num">${index + 1}</span>
+            <span class="step-title">${step.title}</span>
+            <span class="step-status"></span>
+        </div>
+    `).join('');
+    
     div.innerHTML = `
         <div class="message-avatar">🤖</div>
         <div class="message-body">
@@ -451,7 +470,9 @@ function addProgressMessage() {
                     <div class="progress-bar-fill" style="width: 0%"></div>
                 </div>
                 <div class="progress-current-step">准备开始...</div>
-                <div class="progress-steps-list"></div>
+                <div class="progress-steps-list">
+                    ${stepsHtml}
+                </div>
             </div>
             <div class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
@@ -474,7 +495,6 @@ function updateProgressMessage(messageId, data) {
     const progressBar = progressCard.querySelector('.progress-bar-fill');
     const progressPercent = progressCard.querySelector('.progress-percent');
     const currentStepEl = progressCard.querySelector('.progress-current-step');
-    const stepsListEl = progressCard.querySelector('.progress-steps-list');
     const statusEl = progressCard.querySelector('.progress-status');
     
     if (data.progress !== undefined) {
@@ -496,23 +516,47 @@ function updateProgressMessage(messageId, data) {
         progressCard.classList.add('error');
     }
     
-    // 更新步骤列表 - 显示所有步骤，包括正在进行的
-    if (data.steps && stepsListEl) {
-        stepsListEl.innerHTML = data.steps.map((step, index) => {
-            const isCompleted = step.progress <= (data.progress || 0);
-            const isCurrent = step.title === data.currentStep;
-            const statusClass = isCompleted ? 'completed' : (isCurrent ? 'current' : '');
-            const statusIcon = isCompleted ? '✓' : (isCurrent ? '●' : (index + 1));
-            
-            return `
-                <div class="progress-step-item ${statusClass}">
-                    <span class="step-num ${isCompleted ? 'done' : (isCurrent ? 'active' : '')}">${statusIcon}</span>
-                    <span class="step-title">${step.title}</span>
-                    ${isCurrent ? '<span class="step-status">进行中...</span>' : ''}
-                </div>
-            `;
-        }).join('');
-    }
+    // 更新步骤列表 - 根据当前进度更新每个步骤的状态
+    const stepItems = progressCard.querySelectorAll('.progress-step-item');
+    stepItems.forEach((item, index) => {
+        const step = PREDEFINED_STEPS[index];
+        if (!step) return;
+        
+        const stepNum = item.querySelector('.step-num');
+        const stepStatus = item.querySelector('.step-status');
+        
+        // 判断步骤状态
+        const isCompleted = data.progress >= step.progress;
+        const isCurrent = data.currentStep === step.title || 
+                         (data.progress >= step.progress - 5 && data.progress < step.progress + 10);
+        
+        // 更新样式
+        item.classList.remove('completed', 'current');
+        if (isCompleted) {
+            item.classList.add('completed');
+            if (stepNum) {
+                stepNum.textContent = '✓';
+                stepNum.classList.add('done');
+                stepNum.classList.remove('active');
+            }
+            if (stepStatus) stepStatus.textContent = '';
+        } else if (isCurrent) {
+            item.classList.add('current');
+            if (stepNum) {
+                stepNum.textContent = '●';
+                stepNum.classList.add('active');
+                stepNum.classList.remove('done');
+            }
+            if (stepStatus) stepStatus.textContent = '进行中...';
+        } else {
+            // 未开始
+            if (stepNum) {
+                stepNum.textContent = index + 1;
+                stepNum.classList.remove('done', 'active');
+            }
+            if (stepStatus) stepStatus.textContent = '';
+        }
+    });
     
     // 滚动到底部
     const container = document.getElementById('chat-messages');
