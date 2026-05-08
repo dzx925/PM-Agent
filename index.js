@@ -375,11 +375,18 @@ app.post('/generate', async (req, res) => {
       ];
     }
     
-    // 如果只生成PRD，检查是否有已有原型
-    let existingHtml = null;
-    if (generationMode === 'prd') {
+    // 根据生成模式发送不同的步骤
+    if (generationMode === 'prototype') {
+      // 只生成原型 - 只发送原型步骤
+      sendSSE(res, { 
+        type: 'steps', 
+        prototypeSteps,
+        prdSteps: []  // 空数组，不显示PRD步骤
+      });
+    } else if (generationMode === 'prd') {
+      // 只生成PRD - 检查是否有已有原型
       const task = sessionId ? getGenerationTask(sessionId) : null;
-      existingHtml = task?.results?.html || req.body.intermediateResults?.html;
+      const existingHtml = task?.results?.html || req.body.intermediateResults?.html;
       
       if (!existingHtml) {
         sendSSE(res, { 
@@ -393,10 +400,11 @@ app.post('/generate', async (req, res) => {
       // 只发送PRD步骤
       sendSSE(res, { 
         type: 'steps', 
+        prototypeSteps: [],  // 空数组，不显示原型步骤
         prdSteps
       });
     } else {
-      // 发送所有步骤
+      // 全部生成 - 发送所有步骤
       sendSSE(res, { 
         type: 'steps', 
         prototypeSteps,
