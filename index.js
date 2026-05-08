@@ -546,6 +546,17 @@ app.post('/generate', async (req, res) => {
       });
     });
     
+    // 步骤1完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 1,
+      totalSteps: 6,
+      stepData: { title: '业务理解', description: '✓ 完成' },
+      progress: 15,
+      status: 'complete'
+    });
+    
     // 步骤2: 页面拆解
     sendSSE(res, {
       type: 'progress',
@@ -566,9 +577,20 @@ app.post('/generate', async (req, res) => {
         step: 2,
         totalSteps: 6,
         stepData: { title: '页面拆解', description: msg },
-        progress: 15,
+        progress: 18,
         status: 'ai-generating'
       });
+    });
+    
+    // 步骤2完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 2,
+      totalSteps: 6,
+      stepData: { title: '页面拆解', description: '✓ 完成' },
+      progress: 28,
+      status: 'complete'
     });
     
     // 步骤3: 组件设计
@@ -591,9 +613,20 @@ app.post('/generate', async (req, res) => {
         step: 3,
         totalSteps: 6,
         stepData: { title: '组件设计', description: msg },
-        progress: 22,
+        progress: 32,
         status: 'ai-generating'
       });
+    });
+    
+    // 步骤3完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 3,
+      totalSteps: 6,
+      stepData: { title: '组件设计', description: '✓ 完成' },
+      progress: 40,
+      status: 'complete'
     });
     
     // 步骤4: 交互逻辑
@@ -616,9 +649,20 @@ app.post('/generate', async (req, res) => {
         step: 4,
         totalSteps: 6,
         stepData: { title: '交互逻辑', description: msg },
-        progress: 30,
+        progress: 48,
         status: 'ai-generating'
       });
+    });
+    
+    // 步骤4完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 4,
+      totalSteps: 6,
+      stepData: { title: '交互逻辑', description: '✓ 完成' },
+      progress: 55,
+      status: 'complete'
     });
     
     // 步骤5: 生成原型
@@ -641,9 +685,20 @@ app.post('/generate', async (req, res) => {
         step: 5,
         totalSteps: 6,
         stepData: { title: '生成原型', description: msg },
-        progress: 40,
+        progress: 65,
         status: 'ai-generating'
       });
+    });
+    
+    // 步骤5完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 5,
+      totalSteps: 6,
+      stepData: { title: '生成原型', description: '✓ 完成' },
+      progress: 75,
+      status: 'complete'
     });
     
     // 步骤6: 结构化输出
@@ -666,9 +721,20 @@ app.post('/generate', async (req, res) => {
         step: 6,
         totalSteps: 6,
         stepData: { title: '结构化输出', description: msg },
-        progress: 45,
+        progress: 85,
         status: 'ai-generating'
       });
+    });
+    
+    // 步骤6完成
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prototype',
+      step: 6,
+      totalSteps: 6,
+      stepData: { title: '结构化输出', description: '✓ 完成' },
+      progress: 95,
+      status: 'complete'
     });
     
     // 合并所有结果
