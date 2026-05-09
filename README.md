@@ -36,7 +36,7 @@ cd PM-Agent
 npm install
 
 # 3. 设置环境变量
-export SILICONFLOW_API_KEY="your-api-key"
+export OPENAI_API_KEY="your-api-key"
 
 # 4. 启动服务
 node index.js
@@ -51,7 +51,7 @@ node index.js
 ## 使用说明
 
 1. 打开页面（本地或 GitHub Pages）
-2. 输入业务场景（如"帮我做一个客户管理CRM系统"）
+2. 输入业务场景（如"帮我做一个员工考勤管理系统，支持打卡、请假、加班审批"）
 3. 点击"开始生成"
 4. 等待生成完成，查看结果
 5. 下载 HTML 原型和 Markdown PRD
@@ -77,7 +77,7 @@ node index.js
 
 | 变量名 | 说明 | 必需 |
 |--------|------|------|
-| `SILICONFLOW_API_KEY` | SiliconFlow API Key | 是 |
+| `OPENAI_API_KEY` | SiliconFlow API Key | 是 |
 | `GITHUB_ACTIONS` | 自动识别 GitHub 环境 | 否 |
 
 ## 模型路由说明
@@ -113,7 +113,7 @@ this.models = [
 
 | 问题 | 解决方案 |
 |------|---------|
-| 生成失败 | 检查日志，确认 `SILICONFLOW_API_KEY` 有效 |
+| 生成失败 | 检查日志，确认 `OPENAI_API_KEY` 有效 |
 | 模型调用失败 | 检查模型是否开始收费，或更换其他免费模型 |
 | 页面空白 | 检查浏览器控制台，确认 API 地址正确 |
 | 跨域错误 | 确认后端 CORS 配置正确 |
