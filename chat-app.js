@@ -21,6 +21,52 @@ const state = {
     }
 };
 
+// 确认弹窗回调
+let confirmCallback = null;
+
+/**
+ * 显示自定义确认弹窗
+ * @param {string} title - 标题
+ * @param {string} message - 内容
+ * @param {Function} callback - 回调函数，参数为 boolean
+ */
+function showConfirmModal(title, message, callback) {
+    confirmCallback = callback;
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+
+/**
+ * 关闭确认弹窗
+ * @param {boolean} result - 用户选择的结果
+ */
+function closeConfirmModal(result) {
+    document.getElementById('confirm-modal').style.display = 'none';
+    if (confirmCallback) {
+        confirmCallback(result);
+        confirmCallback = null;
+    }
+}
+
+/**
+ * 显示提示弹窗
+ * @param {string} title - 标题
+ * @param {string} message - 内容
+ */
+function showAlert(title, message) {
+    document.getElementById('alert-title').textContent = title;
+    document.getElementById('alert-message').textContent = message;
+    document.getElementById('alert-modal').style.display = 'flex';
+}
+
+/**
+ * 关闭提示弹窗
+ */
+function closeAlertModal() {
+    document.getElementById('alert-modal').style.display = 'none';
+}
+
 // Skill 步骤定义
 const SKILL_STEPS = {
     business: {
@@ -989,46 +1035,48 @@ function handleInputKeydown(event) {
 
 // 新建对话
 function startNewChat() {
-    if (confirm('确定要新建对话吗？当前进度将自动保存。')) {
-        state.messages = [];
-        state.currentProject = null;
-        state.sessionId = generateSessionId();
-        state.intermediateResults = {
-            batch1Result: null,
-            batch2Result: null,
-            html: null,
-            yaml: null,
-            prd: null
-        };
-        
-        // 清空对话历史
-        const chatHistory = document.getElementById('chat-history');
-        if (chatHistory) {
-            chatHistory.innerHTML = `
-                <div class="welcome-message">
-                    <div class="welcome-icon">👋</div>
-                    <h3>我是你的原型设计助手</h3>
-                    <p>你可以这样跟我交流：</p>
-                    <ul class="example-commands">
-                        <li>"<span class="highlight">帮我设计</span>一个员工管理系统"</li>
-                        <li>"<span class="highlight">修改</span>登录页，添加验证码功能"</li>
-                        <li>"<span class="highlight">从第3步开始</span>，重新设计组件"</li>
-                        <li>"<span class="highlight">加载</span>上次的原型继续修改"</li>
-                    </ul>
-                </div>
-            `;
+    showConfirmModal('新建对话', '确定要新建对话吗？当前进度将自动保存。', (confirmed) => {
+        if (confirmed) {
+            state.messages = [];
+            state.currentProject = null;
+            state.sessionId = generateSessionId();
+            state.intermediateResults = {
+                batch1Result: null,
+                batch2Result: null,
+                html: null,
+                yaml: null,
+                prd: null
+            };
+            
+            // 清空对话历史
+            const chatHistory = document.getElementById('chat-history');
+            if (chatHistory) {
+                chatHistory.innerHTML = `
+                    <div class="welcome-message">
+                        <div class="welcome-icon">👋</div>
+                        <h3>我是你的原型设计助手</h3>
+                        <p>你可以这样跟我交流：</p>
+                        <ul class="example-commands">
+                            <li>"<span class="highlight">帮我设计</span>一个员工管理系统"</li>
+                            <li>"<span class="highlight">修改</span>登录页，添加验证码功能"</li>
+                            <li>"<span class="highlight">从第3步开始</span>，重新设计组件"</li>
+                            <li>"<span class="highlight">加载</span>上次的原型继续修改"</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // 清空预览
+            document.getElementById('prototype-frame').style.display = 'none';
+            document.getElementById('prototype-empty').style.display = 'flex';
+            document.getElementById('prd-content').style.display = 'none';
+            document.getElementById('prd-empty').style.display = 'flex';
+            document.getElementById('yaml-content').style.display = 'none';
+            document.getElementById('yaml-empty').style.display = 'flex';
+            
+            saveState();
         }
-        
-        // 清空预览
-        document.getElementById('prototype-frame').style.display = 'none';
-        document.getElementById('prototype-empty').style.display = 'flex';
-        document.getElementById('prd-content').style.display = 'none';
-        document.getElementById('prd-empty').style.display = 'flex';
-        document.getElementById('yaml-content').style.display = 'none';
-        document.getElementById('yaml-empty').style.display = 'flex';
-        
-        saveState();
-    }
+    });
 }
 
 // 下载功能
@@ -1047,7 +1095,7 @@ function downloadCurrent() {
 
 function downloadHTML() {
     if (!state.intermediateResults.html) {
-        alert('暂无原型可下载');
+        showAlert('提示', '暂无原型可下载');
         return;
     }
     
@@ -1062,7 +1110,7 @@ function downloadHTML() {
 
 function downloadPRD() {
     if (!state.intermediateResults.prd) {
-        alert('暂无PRD可下载');
+        showAlert('提示', '暂无PRD可下载');
         return;
     }
     
@@ -1077,7 +1125,7 @@ function downloadPRD() {
 
 function downloadYAML() {
     if (!state.intermediateResults.yaml) {
-        alert('暂无YAML可下载');
+        showAlert('提示', '暂无YAML可下载');
         return;
     }
     

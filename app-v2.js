@@ -19,6 +19,45 @@ const state = {
     }
 };
 
+// 确认弹窗回调
+let confirmCallback = null;
+
+/**
+ * 显示自定义确认弹窗
+ * @param {string} title - 标题
+ * @param {string} message - 内容
+ * @param {Function} callback - 回调函数，参数为 boolean
+ */
+function showConfirmModal(title, message, callback) {
+    confirmCallback = callback;
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+
+/**
+ * 关闭确认弹窗
+ * @param {boolean} result - 用户选择的结果
+ */
+function closeConfirmModal(result) {
+    document.getElementById('confirm-modal').style.display = 'none';
+    if (confirmCallback) {
+        confirmCallback(result);
+        confirmCallback = null;
+    }
+}
+
+/**
+ * 显示提示弹窗
+ * @param {string} title - 标题
+ * @param {string} message - 内容
+ */
+function showAlert(title, message) {
+    document.getElementById('alert-title').textContent = title;
+    document.getElementById('alert-message').textContent = message;
+    document.getElementById('alert-modal').style.display = 'flex';
+}
+
 // Skill 步骤定义
 const SKILL_STEPS = {
     business: { num: 1, name: '业务理解', description: '提炼目标用户、核心价值、主流程' },
@@ -908,44 +947,46 @@ function escapeHtml(text) {
 }
 
 function startNewChat() {
-    if (confirm('确定要新建对话吗？当前进度已自动保存。')) {
-        state.messages = [];
-        state.currentProject = null;
-        state.sessionId = generateSessionId();
-        state.intermediateResults = { batch1Result: null, batch2Result: null, html: null, yaml: null, prd: null };
-        
-        document.getElementById('chat-messages').innerHTML = `
-            <div class="welcome-card">
-                <div class="welcome-icon">👋</div>
-                <h3>我是你的HR系统原型助手</h3>
-                <p>输入HR业务场景，我帮你自动生成原型和PRD</p>
-                <div class="command-examples">
-                    <div class="cmd-example" onclick="insertCommand('帮我设计一个员工考勤系统，支持打卡、请假、加班审批')">
-                        <span class="cmd-label">设计</span>
-                        <span>帮我设计一个员工考勤系统...</span>
-                    </div>
-                    <div class="cmd-example" onclick="insertCommand('修改登录页面，添加验证码功能')">
-                        <span class="cmd-label">修改</span>
-                        <span>修改登录页面，添加验证码...</span>
-                    </div>
-                    <div class="cmd-example" onclick="insertCommand('从第3步开始，设计薪酬系统')">
-                        <span class="cmd-label">步骤</span>
-                        <span>从第3步开始，设计薪酬系统...</span>
+    showConfirmModal('新建对话', '确定要新建对话吗？当前进度已自动保存。', (confirmed) => {
+        if (confirmed) {
+            state.messages = [];
+            state.currentProject = null;
+            state.sessionId = generateSessionId();
+            state.intermediateResults = { batch1Result: null, batch2Result: null, html: null, yaml: null, prd: null };
+            
+            document.getElementById('chat-messages').innerHTML = `
+                <div class="welcome-card">
+                    <div class="welcome-icon">👋</div>
+                    <h3>我是你的HR系统原型助手</h3>
+                    <p>输入HR业务场景，我帮你自动生成原型和PRD</p>
+                    <div class="command-examples">
+                        <div class="cmd-example" onclick="insertCommand('帮我设计一个员工考勤系统，支持打卡、请假、加班审批')">
+                            <span class="cmd-label">设计</span>
+                            <span>帮我设计一个员工考勤系统...</span>
+                        </div>
+                        <div class="cmd-example" onclick="insertCommand('修改登录页面，添加验证码功能')">
+                            <span class="cmd-label">修改</span>
+                            <span>修改登录页面，添加验证码...</span>
+                        </div>
+                        <div class="cmd-example" onclick="insertCommand('从第3步开始，设计薪酬系统')">
+                            <span class="cmd-label">步骤</span>
+                            <span>从第3步开始，设计薪酬系统...</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        // 清空预览
-        document.getElementById('html-preview').style.display = 'none';
-        document.getElementById('html-empty').style.display = 'flex';
-        document.getElementById('prd-render').style.display = 'none';
-        document.getElementById('prd-empty').style.display = 'flex';
-        document.getElementById('yaml-render').style.display = 'none';
-        document.getElementById('yaml-empty').style.display = 'flex';
-        
-        saveState();
-    }
+            `;
+            
+            // 清空预览
+            document.getElementById('html-preview').style.display = 'none';
+            document.getElementById('html-empty').style.display = 'flex';
+            document.getElementById('prd-render').style.display = 'none';
+            document.getElementById('prd-empty').style.display = 'flex';
+            document.getElementById('yaml-render').style.display = 'none';
+            document.getElementById('yaml-empty').style.display = 'flex';
+            
+            saveState();
+        }
+    });
 }
 
 function downloadCurrent() {
@@ -958,7 +999,10 @@ function downloadCurrent() {
 }
 
 function downloadHTML() {
-    if (!state.intermediateResults.html) return alert('暂无原型可下载');
+    if (!state.intermediateResults.html) {
+        showAlert('提示', '暂无原型可下载');
+        return;
+    }
     
     const blob = new Blob([state.intermediateResults.html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -970,7 +1014,10 @@ function downloadHTML() {
 }
 
 function downloadPRD() {
-    if (!state.intermediateResults.prd) return alert('暂无PRD可下载');
+    if (!state.intermediateResults.prd) {
+        showAlert('提示', '暂无PRD可下载');
+        return;
+    }
     
     const blob = new Blob([state.intermediateResults.prd], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -982,7 +1029,10 @@ function downloadPRD() {
 }
 
 function downloadYAML() {
-    if (!state.intermediateResults.yaml) return alert('暂无YAML可下载');
+    if (!state.intermediateResults.yaml) {
+        showAlert('提示', '暂无YAML可下载');
+        return;
+    }
     
     const blob = new Blob([state.intermediateResults.yaml], { type: 'text/yaml' });
     const url = URL.createObjectURL(blob);

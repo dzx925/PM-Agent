@@ -251,6 +251,23 @@
         </div>
     </div>
 
-    <script src="app-v2.js?v=2"></script>
+    <!-- 确认弹窗 -->
+    <div class="modal" id="confirm-modal" style="display: none;">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3 id="confirm-title">确认</h3>
+                <button class="modal-close" onclick="closeConfirmModal(false)">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message">确认内容</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeConfirmModal(false)">取消</button>
+                <button class="btn-primary" onclick="closeConfirmModal(true)">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app-v2.js?v=3"></script>
 </body>
 </html>
