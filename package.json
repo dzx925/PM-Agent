@@ -1,21 +1,17 @@
 {
-  "name": "pm-agent-backend",
-  "version": "2.0.0",
-  "description": "PM Agent 后端服务 - 对话式原型设计助手",
+  "name": "pm-agent",
+  "version": "1.0.0",
+  "description": "PM 全流程自动化工具 - 输入业务场景，自动生成 ToB 原型 + PRD",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "chat": "node chat-server.js",
-    "chat:dev": "nodemon chat-server.js"
+    "dev": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "axios": "^1.6.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "axios": "^1.6.0",
+    "playwright": "^1.59.1"
   },
   "engines": {
     "node": ">=18.0.0"

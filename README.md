@@ -1,58 +1,59 @@
-# PM Agent Web
+# PM Agent
 
 PM 全流程自动化工具 - 输入业务场景，自动生成 ToB 原型 + PRD。
 
 ## 项目结构
 
 ```
-pm-agent-web/
-├── frontend/          # GitHub Pages 前端
-│   ├── index.html     # 主页面
-│   ├── style.css      # 样式
-│   └── app.js         # 交互逻辑
-├── backend/           # Render 后端
-│   ├── index.js       # Express 服务
-│   ├── package.json   # 依赖配置
-│   └── README.md      # 后端部署说明
-└── README.md          # 本文件
+PM-Agent/
+├── AGENT.md              # Agent 配置和工作流程
+├── index.html            # 主页面（GitHub Pages 前端）
+├── chat-index.html       # 聊天式交互页面
+├── index.js              # Express 后端服务
+├── chat-server.js        # WebSocket 聊天服务
+├── app-v2.js             # 前端交互逻辑 v2
+├── chat-app.js           # 聊天页面交互逻辑
+├── style.css             # 样式文件
+├── chat-style.css        # 聊天页面样式
+├── utils/
+│   └── model-router.js   # SiliconFlow 模型路由工具
+├── package.json          # 依赖配置
+├── deploy.sh             # 部署脚本
+├── DEPLOY.md             # 部署指南
+└── README.md             # 本文件
 ```
 
-## 快速部署指南
+## 快速开始
 
-### 第一步：部署后端（Render）
+### 方式一：本地运行
 
-1. 创建 GitHub 仓库 `pm-agent-backend`
-2. 将 `backend/` 目录内容推送到该仓库
-3. 登录 [render.com](https://render.com) → New Web Service
-4. 选择仓库，配置：
-   - Runtime: Node
-   - Build: `npm install`
-   - Start: `npm start`
-5. 添加环境变量 `OPENAI_API_KEY`
-6. 部署，记录 URL（如 `https://pm-agent-api.onrender.com`）
+```bash
+# 1. 克隆仓库
+git clone https://github.com/dzx925/PM-Agent.git
+cd PM-Agent
 
-详细步骤见 [backend/README.md](./backend/README.md)
+# 2. 安装依赖
+npm install
 
-### 第二步：部署前端（GitHub Pages）
+# 3. 设置环境变量
+export OPENAI_API_KEY="your-api-key"
 
-1. 修改 `frontend/app.js` 中的 API 地址：
-   ```javascript
-   const API_BASE_URL = 'https://你的-render-地址';
-   ```
+# 4. 启动服务
+node index.js
 
-2. 创建 GitHub 仓库 `pm-agent-frontend`
-3. 将 `frontend/` 目录内容推送到该仓库
-4. 开启 GitHub Pages：
-   - Settings → Pages → Source: Deploy from a branch
-   - Branch: main / root
-5. 访问 `https://你的用户名.github.io/pm-agent-frontend`
+# 5. 打开 http://localhost:3000
+```
 
-### 第三步：使用
+### 方式二：部署到 Render + GitHub Pages
 
-1. 打开前端页面
-2. 输入业务场景（如"帮我做一个客户管理CRM系统"）
+详见 [DEPLOY.md](./DEPLOY.md)
+
+## 使用说明
+
+1. 打开页面（本地或 GitHub Pages）
+2. 输入业务场景（如"帮我做一个员工考勤管理系统，支持打卡、请假、加班审批"）
 3. 点击"开始生成"
-4. 等待 30-60 秒，查看结果
+4. 等待生成完成，查看结果
 5. 下载 HTML 原型和 Markdown PRD
 
 ## 技术栈
@@ -61,7 +62,7 @@ pm-agent-web/
 |------|------|---------|
 | 前端 | 原生 HTML/CSS/JS | GitHub Pages |
 | 后端 | Node.js + Express | Render |
-| AI | OpenAI GPT-4o | - |
+| AI | SiliconFlow API (GLM-4-9B / Qwen3-8B) | - |
 | Skill | GitHub Raw | GitHub |
 
 ## 费用
@@ -70,47 +71,53 @@ pm-agent-web/
 |------|------|
 | GitHub Pages | 免费 |
 | Render | 免费（750小时/月）|
-| OpenAI API | 按调用量付费 |
+| SiliconFlow | 免费模型（GLM-4-9B、Qwen3-8B）|
 
-## 注意事项
+## 环境变量
 
-1. **Render 冷启动**：免费版 15 分钟无访问会休眠，首次请求可能慢
-2. **API Key 安全**：务必在 Render 环境变量中配置，不要泄露
-3. **Skill 更新**：修改 GitHub 上的 SKILL.md 后，重启 Render 服务生效
+| 变量名 | 说明 | 必需 |
+|--------|------|------|
+| `OPENAI_API_KEY` | SiliconFlow API Key | 是 |
+| `GITHUB_ACTIONS` | 自动识别 GitHub 环境 | 否 |
+
+## 模型路由说明
+
+本项目使用 `utils/model-router.js` 自动管理模型调用：
+
+- **本地/Trae 环境**：直接使用默认模型
+- **GitHub Actions 环境**：自动在免费模型间切换（GLM-4-9B → Qwen3-8B）
+- **模型失效时**：自动提示检查模型是否开始收费
+
+## Skill 仓库
+
+- [prototype-skill](https://github.com/dzx925/prototype-skill) - 原型生成 Skill
+- [pm-prd-skills](https://github.com/dzx925/pm-prd-skills) - PRD 生成相关 Skills
 
 ## 自定义
 
-### 修改 Skill
-
-直接修改你的 GitHub 仓库：
-- https://github.com/dzx925/prototype-skill
-- https://github.com/dzx925/pm-prd-skills
-
 ### 更换 AI 模型
 
-修改 `backend/index.js` 中的 `model` 参数：
+修改 `utils/model-router.js` 中的模型列表：
 ```javascript
-model: 'gpt-4o',  // 可改为 gpt-4o-mini, gpt-4 等
+this.models = [
+  { id: 'THUDM/GLM-4-9B-0414', name: 'GLM-4-9B' },
+  { id: 'Qwen/Qwen3-8B', name: 'Qwen3-8B' }
+];
 ```
 
-### 添加密码保护
+### 修改 Skill
 
-在 `backend/index.js` 中添加简单的 API Key 验证：
-```javascript
-const apiKey = req.headers['x-api-key'];
-if (apiKey !== process.env.API_KEY) {
-  return res.status(401).json({ error: 'Unauthorized' });
-}
-```
+直接修改你的 GitHub Skill 仓库，修改后重启服务生效。
 
 ## 问题排查
 
 | 问题 | 解决方案 |
 |------|---------|
-| 生成失败 | 检查 Render 日志，确认 OpenAI API Key 有效 |
+| 生成失败 | 检查日志，确认 `OPENAI_API_KEY` 有效 |
+| 模型调用失败 | 检查模型是否开始收费，或更换其他免费模型 |
 | 页面空白 | 检查浏览器控制台，确认 API 地址正确 |
 | 跨域错误 | 确认后端 CORS 配置正确 |
-| Skill 未更新 | 重启 Render 服务，清除缓存 |
+| Skill 未更新 | 重启服务，清除缓存 |
 
 ## 许可证
 
