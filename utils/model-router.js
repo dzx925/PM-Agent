@@ -11,7 +11,8 @@ class SiliconFlowModelRouter {
       { id: 'Qwen/Qwen3-8B', name: 'Qwen3-8B' }
     ];
     
-    this.apiKey = process.env.SILICONFLOW_API_KEY;
+    // 使用 OPENAI_API_KEY 环境变量（与主服务保持一致）
+    this.apiKey = process.env.OPENAI_API_KEY;
     this.baseUrl = 'https://api.siliconflow.cn/v1';
   }
 
