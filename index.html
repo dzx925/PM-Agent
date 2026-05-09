@@ -216,11 +216,17 @@
             <div class="modal-body">
                 <div class="load-tabs">
                     <button class="load-tab active" onclick="switchLoadTab('local')">本地存储</button>
+                    <button class="load-tab" onclick="switchLoadTab('history')">历史对话</button>
                     <button class="load-tab" onclick="switchLoadTab('file')">上传文件</button>
                 </div>
                 <div class="load-panel" id="load-local-panel">
                     <div class="project-grid" id="project-grid">
                         <!-- 动态加载 -->
+                    </div>
+                </div>
+                <div class="load-panel" id="load-history-panel" style="display: none;">
+                    <div class="history-list" id="history-list">
+                        <!-- 动态加载历史对话 -->
                     </div>
                 </div>
                 <div class="load-panel" id="load-file-panel" style="display: none;">

@@ -816,7 +816,12 @@ function switchLoadTab(tab) {
     event.target.classList.add('active');
     
     document.getElementById('load-local-panel').style.display = tab === 'local' ? 'block' : 'none';
+    document.getElementById('load-history-panel').style.display = tab === 'history' ? 'block' : 'none';
     document.getElementById('load-file-panel').style.display = tab === 'file' ? 'block' : 'none';
+    
+    if (tab === 'history') {
+        renderHistoryList();
+    }
 }
 
 // ========== 项目加载/保存 ==========
@@ -851,6 +856,138 @@ function saveProject(project) {
     projects.unshift(project);
     if (projects.length > 20) projects.pop();
     localStorage.setItem('hr_agent_projects', JSON.stringify(projects));
+}
+
+// ========== 历史对话管理 ==========
+
+function getChatHistory() {
+    const data = localStorage.getItem('hr_agent_chat_history');
+    return data ? JSON.parse(data) : [];
+}
+
+function saveChatToHistory() {
+    if (state.messages.length === 0) return;
+    
+    const history = getChatHistory();
+    const firstUserMessage = state.messages.find(m => m.role === 'user');
+    const title = firstUserMessage ? firstUserMessage.content.substring(0, 30) + '...' : '未命名对话';
+    
+    const chatRecord = {
+        id: state.sessionId,
+        title: title,
+        messages: state.messages,
+        currentProject: state.currentProject,
+        intermediateResults: state.intermediateResults,
+        updatedAt: new Date().toISOString()
+    };
+    
+    // 更新或添加新记录
+    const existingIndex = history.findIndex(h => h.id === state.sessionId);
+    if (existingIndex >= 0) {
+        history[existingIndex] = chatRecord;
+    } else {
+        history.unshift(chatRecord);
+    }
+    
+    // 最多保留20条历史记录
+    if (history.length > 20) history.pop();
+    
+    localStorage.setItem('hr_agent_chat_history', JSON.stringify(history));
+}
+
+function renderHistoryList() {
+    const list = document.getElementById('history-list');
+    if (!list) return;
+    
+    const history = getChatHistory();
+    
+    if (history.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无历史对话</p>';
+        return;
+    }
+    
+    list.innerHTML = history.map(h => `
+        <div class="history-item" data-id="${h.id}">
+            <div class="history-info" onclick="loadChatHistory('${h.id}')">
+                <div class="history-title">${escapeHtml(h.title)}</div>
+                <div class="history-date">${new Date(h.updatedAt).toLocaleString('zh-CN')}</div>
+            </div>
+            <button class="history-delete" onclick="deleteChatHistory('${h.id}', event)" title="删除">×</button>
+        </div>
+    `).join('');
+}
+
+function loadChatHistory(chatId) {
+    const history = getChatHistory();
+    const chat = history.find(h => h.id === chatId);
+    
+    if (chat) {
+        state.sessionId = chat.id;
+        state.messages = chat.messages || [];
+        state.currentProject = chat.currentProject || null;
+        state.intermediateResults = chat.intermediateResults || {
+            batch1Result: null,
+            batch2Result: null,
+            html: null,
+            yaml: null,
+            prd: null
+        };
+        
+        // 重新渲染消息
+        const container = document.getElementById('chat-messages');
+        if (container) {
+            container.innerHTML = '';
+            if (state.messages.length === 0) {
+                // 显示欢迎卡片
+                container.innerHTML = `
+                    <div class="welcome-card">
+                        <div class="welcome-icon">👋</div>
+                        <h3>我是你的HR系统原型助手</h3>
+                        <p>输入HR业务场景，我帮你自动生成原型和PRD</p>
+                        <div class="command-examples">
+                            <div class="cmd-example" onclick="insertCommand('帮我设计一个员工考勤系统，支持打卡、请假、加班审批')">
+                                <span class="cmd-label">设计</span>
+                                <span>帮我设计一个员工考勤系统...</span>
+                            </div>
+                            <div class="cmd-example" onclick="insertCommand('修改登录页面，添加验证码功能')">
+                                <span class="cmd-label">修改</span>
+                                <span>修改登录页面，添加验证码...</span>
+                            </div>
+                            <div class="cmd-example" onclick="insertCommand('从第3步开始，设计薪酬系统')">
+                                <span class="cmd-label">步骤</span>
+                                <span>从第3步开始，设计薪酬系统...</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                state.messages.forEach(m => renderMessage(m));
+            }
+        }
+        
+        // 恢复预览
+        if (state.intermediateResults.html) showHTML(state.intermediateResults.html);
+        if (state.intermediateResults.yaml) showYAML(state.intermediateResults.yaml);
+        if (state.intermediateResults.prd) showPRD(state.intermediateResults.prd);
+        
+        closeModal('load-modal');
+        saveState();
+        
+        addMessage('assistant', `已加载历史对话「${chat.title}」。你可以继续对话。`);
+    }
+}
+
+function deleteChatHistory(chatId, event) {
+    if (event) event.stopPropagation();
+    
+    showConfirmModal('删除确认', '确定要删除这条历史对话吗？', (confirmed) => {
+        if (confirmed) {
+            let history = getChatHistory();
+            history = history.filter(h => h.id !== chatId);
+            localStorage.setItem('hr_agent_chat_history', JSON.stringify(history));
+            renderHistoryList();
+        }
+    });
 }
 
 function loadProject(projectId) {
@@ -1057,6 +1194,9 @@ function saveState() {
         currentProject: state.currentProject,
         sessionId: state.sessionId
     }));
+    
+    // 同时保存到历史对话
+    saveChatToHistory();
 }
 
 function loadSavedState() {
