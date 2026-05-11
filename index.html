@@ -21,17 +21,6 @@
                 <button class="icon-btn" onclick="startNewChat()" title="新建对话">+</button>
             </div>
 
-            <!-- 快捷命令 -->
-            <div class="quick-actions">
-                <div class="quick-title">快捷命令</div>
-                <div class="quick-tags">
-                    <button class="quick-tag" onclick="insertCommand('帮我设计一个员工考勤系统')">📝 考勤系统</button>
-                    <button class="quick-tag" onclick="insertCommand('生成招聘管理页面')">👥 招聘管理</button>
-                    <button class="quick-tag" onclick="insertCommand('从第3步开始设计')">⚡ 指定步骤</button>
-                    <button class="quick-tag" onclick="showLoadModal()">📂 加载项目</button>
-                </div>
-            </div>
-
             <!-- 对话历史 -->
             <div class="chat-messages" id="chat-messages">
                 <div class="welcome-card">
@@ -58,11 +47,11 @@
             <!-- 输入区域 -->
             <div class="chat-input-wrapper">
                 <div class="input-actions">
-                    <button class="action-chip" onclick="showStepSelector()">
-                        <span>⚡</span> 指定步骤
+                    <button class="action-chip" onclick="showHistoryModal()">
+                        <span>📜</span> 历史对话
                     </button>
-                    <button class="action-chip" onclick="showLoadModal()">
-                        <span>📂</span> 加载项目
+                    <button class="action-chip" onclick="showUploadModal()">
+                        <span>📤</span> 上传文件
                     </button>
                 </div>
                 <div class="input-box">
@@ -206,36 +195,34 @@
         </div>
     </div>
 
-    <!-- 项目加载弹窗 -->
-    <div class="modal" id="load-modal" style="display: none;">
+    <!-- 上传文件弹窗 -->
+    <div class="modal" id="upload-modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>📂 加载已有项目</h3>
-                <button class="modal-close" onclick="closeModal('load-modal')">×</button>
+                <h3>📤 上传文件</h3>
+                <button class="modal-close" onclick="closeModal('upload-modal')">×</button>
             </div>
             <div class="modal-body">
-                <div class="load-tabs">
-                    <button class="load-tab active" onclick="switchLoadTab('local')">本地存储</button>
-                    <button class="load-tab" onclick="switchLoadTab('history')">历史对话</button>
-                    <button class="load-tab" onclick="switchLoadTab('file')">上传文件</button>
+                <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                    <div class="upload-icon">📁</div>
+                    <p>点击或拖拽文件到此处</p>
+                    <p class="upload-hint">支持 .html, .md, .yaml, .json</p>
+                    <input type="file" id="file-input" accept=".html,.md,.yaml,.json" multiple onchange="handleFileUpload(event)">
                 </div>
-                <div class="load-panel" id="load-local-panel">
-                    <div class="project-grid" id="project-grid">
-                        <!-- 动态加载 -->
-                    </div>
-                </div>
-                <div class="load-panel" id="load-history-panel" style="display: none;">
-                    <div class="history-list" id="history-list">
-                        <!-- 动态加载历史对话 -->
-                    </div>
-                </div>
-                <div class="load-panel" id="load-file-panel" style="display: none;">
-                    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
-                        <div class="upload-icon">📁</div>
-                        <p>点击或拖拽文件到此处</p>
-                        <p class="upload-hint">支持 .html, .md, .yaml, .json</p>
-                        <input type="file" id="file-input" accept=".html,.md,.yaml,.json" multiple onchange="handleFileUpload(event)">
-                    </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史对话弹窗 -->
+    <div class="modal" id="history-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📜 历史对话</h3>
+                <button class="modal-close" onclick="closeModal('history-modal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-list" id="history-list-modal">
+                    <!-- 动态加载历史对话 -->
                 </div>
             </div>
         </div>
@@ -274,6 +261,6 @@
         </div>
     </div>
 
-    <script src="app-v2.js?v=3"></script>
+    <script src="app-v2.js?v=5"></script>
 </body>
 </html>

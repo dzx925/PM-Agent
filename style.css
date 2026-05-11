@@ -986,3 +986,134 @@ body {
     background: #fee2e2;
     color: #dc2626;
 }
+
+/* ========== 加载更多提示样式 ========== */
+
+.load-more-hint {
+    text-align: center;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.load-more-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg);
+    padding: 6px 12px;
+    border-radius: 12px;
+    display: inline-block;
+}
+
+/* ========== 进度卡片样式 ========== */
+
+.progress-message .message-content {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+}
+
+.progress-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.progress-status {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.progress-percent {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.progress-bar-container {
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-current-step {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.progress-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.progress-step-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.progress-step-item.completed {
+    color: var(--text);
+}
+
+.progress-step-item.current {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.step-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.step-num.active {
+    background: var(--primary);
+    color: white;
+}
+
+.step-num.completed {
+    background: #22c55e;
+    color: white;
+}
+
+.step-title {
+    flex: 1;
+}
+
+.step-status {
+    font-size: 12px;
+    color: var(--text-muted);
+}

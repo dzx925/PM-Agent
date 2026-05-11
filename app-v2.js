@@ -303,6 +303,14 @@ let generationSteps = [];
 // 后端发送的完整步骤列表
 let allStepsFromBackend = [];
 
+// 页面是否正在刷新/关闭
+let isPageRefreshing = false;
+
+// 监听页面刷新/关闭事件
+window.addEventListener('beforeunload', () => {
+    isPageRefreshing = true;
+});
+
 async function startGeneration(scene, isModify = false, mode = 'all') {
     state.isGenerating = true;
     generationSteps = [];
@@ -367,6 +375,19 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
         
     } catch (error) {
         console.error('生成失败:', error);
+        
+        // 检查是否是页面刷新导致的错误
+        if (isPageRefreshing) {
+            console.log('页面正在刷新，不显示错误消息');
+            return;
+        }
+        
+        // 检查是否是网络错误（可能是用户主动刷新）
+        if (error.message && (error.message.includes('network') || error.message.includes('fetch'))) {
+            console.log('网络错误，可能是页面刷新导致');
+            return;
+        }
+        
         updateProgressMessage(currentProgressMessageId, {
             status: 'error',
             error: error.message
@@ -527,13 +548,43 @@ function renderMessage(message) {
     const avatar = message.role === 'user' ? '👤' : '🤖';
     const time = new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     
-    div.innerHTML = `
-        <div class="message-avatar">${avatar}</div>
-        <div class="message-body">
-            <div class="message-content">${escapeHtml(message.content).replace(/\n/g, '<br>')}</div>
-            <div class="message-time">${time}</div>
-        </div>
-    `;
+    // 如果是进度消息，使用进度卡片样式
+    if (message.isProgress) {
+        div.classList.add('progress-message');
+        div.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-body">
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <span class="progress-status">${message.progress >= 100 ? '✅ 生成完成' : '🚀 正在生成原型...'}</span>
+                        <span class="progress-percent">${message.progress || 0}%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: ${message.progress || 0}%"></div>
+                    </div>
+                    <div class="progress-current-step">${message.currentStep || '准备开始...'}</div>
+                    <div class="progress-steps-list">
+                        ${(message.steps || []).map((step, index) => `
+                            <div class="progress-step-item ${step.completed ? 'completed' : ''}">
+                                <span class="step-num ${step.completed ? 'completed' : ''}">${step.completed ? '✓' : index + 1}</span>
+                                <span class="step-title">${step.title}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+    } else {
+        // 普通消息
+        div.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-body">
+                <div class="message-content">${escapeHtml(message.content).replace(/\n/g, '<br>')}</div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+    }
     
     container.appendChild(div);
 }
@@ -597,6 +648,20 @@ function addProgressMessage() {
     if (welcome) welcome.remove();
     
     const messageId = 'progress_' + Date.now();
+    const timestamp = Date.now();
+    
+    // 创建进度消息对象并添加到 state.messages
+    const progressMessage = {
+        role: 'assistant',
+        content: '🚀 正在生成原型...',
+        timestamp: timestamp,
+        id: messageId,
+        isProgress: true,  // 标记为进度消息
+        progress: 0,
+        steps: []
+    };
+    state.messages.push(progressMessage);
+    
     const div = document.createElement('div');
     div.className = 'message assistant progress-message';
     div.id = messageId;
@@ -615,7 +680,7 @@ function addProgressMessage() {
                 <div class="progress-current-step">准备开始...</div>
                 <div class="progress-steps-list"></div>
             </div>
-            <div class="message-time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div class="message-time">${new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
     `;
     
@@ -653,6 +718,22 @@ function initProgressSteps(messageId, steps) {
 }
 
 function updateProgressMessage(messageId, data) {
+    // 同时更新 state.messages 中的进度消息
+    const msgIndex = state.messages.findIndex(m => m.id === messageId);
+    if (msgIndex !== -1) {
+        const msg = state.messages[msgIndex];
+        if (data.progress !== undefined) msg.progress = data.progress;
+        if (data.currentStep) msg.currentStep = data.currentStep;
+        if (data.status === 'complete') msg.progress = 100;
+        // 更新步骤状态
+        if (data.steps) {
+            msg.steps = data.steps.map((step, index) => ({
+                title: step.title || step,
+                completed: index < (data.progress / 100) * data.steps.length
+            }));
+        }
+    }
+    
     const messageEl = document.getElementById(messageId);
     if (!messageEl) return;
     
@@ -795,9 +876,38 @@ function showStepSelector() {
     document.getElementById('step-modal').style.display = 'flex';
 }
 
-function showLoadModal() {
-    renderProjectList();
-    document.getElementById('load-modal').style.display = 'flex';
+function showUploadModal() {
+    document.getElementById('upload-modal').style.display = 'flex';
+}
+
+function showHistoryModal() {
+    // 渲染历史对话列表到新弹窗
+    renderHistoryListModal();
+    
+    // 显示独立的历史对话弹窗
+    document.getElementById('history-modal').style.display = 'flex';
+}
+
+function renderHistoryListModal() {
+    const list = document.getElementById('history-list-modal');
+    if (!list) return;
+    
+    const history = getChatHistory();
+    
+    if (history.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无历史对话</p>';
+        return;
+    }
+    
+    list.innerHTML = history.map(h => `
+        <div class="history-item" data-id="${h.id}">
+            <div class="history-info" onclick="loadChatHistory('${h.id}'); closeModal('history-modal');">
+                <div class="history-title">${escapeHtml(h.title)}</div>
+                <div class="history-date">${new Date(h.updatedAt).toLocaleString('zh-CN')}</div>
+            </div>
+            <button class="history-delete" onclick="deleteChatHistory('${h.id}', event)" title="删除">×</button>
+        </div>
+    `).join('');
 }
 
 function closeModal(id) {
@@ -809,19 +919,6 @@ function selectStartStep(stepKey) {
     const step = SKILL_STEPS[stepKey];
     addMessage('assistant', `已选择从「${step.name}」开始设计。请描述你的业务场景。`);
     closeModal('step-modal');
-}
-
-function switchLoadTab(tab) {
-    document.querySelectorAll('.load-tab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    document.getElementById('load-local-panel').style.display = tab === 'local' ? 'block' : 'none';
-    document.getElementById('load-history-panel').style.display = tab === 'history' ? 'block' : 'none';
-    document.getElementById('load-file-panel').style.display = tab === 'file' ? 'block' : 'none';
-    
-    if (tab === 'history') {
-        renderHistoryList();
-    }
 }
 
 // ========== 项目加载/保存 ==========
@@ -1199,6 +1296,11 @@ function saveState() {
     saveChatToHistory();
 }
 
+// 消息分页配置
+const MESSAGE_PAGE_SIZE = 20; // 每次加载的消息数量
+let loadedMessageCount = 0; // 已加载的消息数量
+let isLoadingMoreMessages = false; // 是否正在加载更多消息
+
 function loadSavedState() {
     const saved = localStorage.getItem('hr_agent_state');
     if (saved) {
@@ -1207,9 +1309,30 @@ function loadSavedState() {
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
         
-        // 恢复显示
+        // 恢复显示 - 只加载最近的消息
         if (state.messages.length > 0) {
-            state.messages.forEach(m => renderMessage(m));
+            // 只加载最近的消息
+            const recentMessages = state.messages.slice(-MESSAGE_PAGE_SIZE);
+            loadedMessageCount = recentMessages.length;
+            
+            // 添加"加载更多"提示（如果有更多消息）
+            if (state.messages.length > MESSAGE_PAGE_SIZE) {
+                const loadMoreHint = document.createElement('div');
+                loadMoreHint.className = 'load-more-hint';
+                loadMoreHint.innerHTML = `<div class="load-more-text">↑ 向上滑动加载更多消息 (${state.messages.length - MESSAGE_PAGE_SIZE} 条)</div>`;
+                document.getElementById('chat-messages').appendChild(loadMoreHint);
+            }
+            
+            // 渲染最近的消息
+            recentMessages.forEach(m => renderMessage(m));
+            
+            // 滚动到底部显示最新消息
+            setTimeout(() => {
+                const container = document.getElementById('chat-messages');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }, 100);
         }
         if (state.currentProject) {
             if (state.currentProject.html) showHTML(state.currentProject.html);
@@ -1218,6 +1341,88 @@ function loadSavedState() {
         }
     }
 }
+
+// 加载更多历史消息
+function loadMoreMessages() {
+    if (isLoadingMoreMessages) return;
+    if (loadedMessageCount >= state.messages.length) return;
+    
+    isLoadingMoreMessages = true;
+    
+    const container = document.getElementById('chat-messages');
+    const oldScrollHeight = container.scrollHeight;
+    const oldScrollTop = container.scrollTop;
+    
+    // 计算要加载的消息范围
+    const startIndex = Math.max(0, state.messages.length - loadedMessageCount - MESSAGE_PAGE_SIZE);
+    const endIndex = state.messages.length - loadedMessageCount;
+    const messagesToLoad = state.messages.slice(startIndex, endIndex);
+    
+    // 移除"加载更多"提示
+    const loadMoreHint = container.querySelector('.load-more-hint');
+    if (loadMoreHint) {
+        loadMoreHint.remove();
+    }
+    
+    // 在顶部插入消息（倒序渲染，保持时间顺序）
+    const fragment = document.createDocumentFragment();
+    messagesToLoad.reverse().forEach(m => {
+        const msgEl = createMessageElement(m);
+        fragment.insertBefore(msgEl, fragment.firstChild);
+    });
+    
+    container.insertBefore(fragment, container.firstChild);
+    
+    // 如果还有更多消息，重新添加提示
+    if (startIndex > 0) {
+        const newHint = document.createElement('div');
+        newHint.className = 'load-more-hint';
+        newHint.innerHTML = `<div class="load-more-text">↑ 向上滑动加载更多消息 (${startIndex} 条)</div>`;
+        container.insertBefore(newHint, container.firstChild);
+    }
+    
+    // 保持滚动位置
+    const newScrollHeight = container.scrollHeight;
+    container.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+    
+    loadedMessageCount += messagesToLoad.length;
+    isLoadingMoreMessages = false;
+}
+
+// 创建消息元素（不直接渲染到DOM）
+function createMessageElement(message) {
+    const div = document.createElement('div');
+    div.className = `message ${message.role}`;
+    if (message.isProgress) {
+        div.classList.add('progress-message');
+    }
+    div.id = message.id || '';
+    
+    const time = message.timestamp ? new Date(message.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+    
+    div.innerHTML = `
+        <div class="message-avatar">${message.role === 'user' ? '👤' : '🤖'}</div>
+        <div class="message-body">
+            <div class="message-content">${formatMessageContent(message.content)}</div>
+            ${time ? `<div class="message-time">${time}</div>` : ''}
+        </div>
+    `;
+    
+    return div;
+}
+
+// 监听滚动事件，滚动到顶部时加载更多消息
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('chat-messages');
+    if (container) {
+        container.addEventListener('scroll', () => {
+            // 当滚动到顶部附近时加载更多消息
+            if (container.scrollTop < 50 && !isLoadingMoreMessages && loadedMessageCount < state.messages.length) {
+                loadMoreMessages();
+            }
+        });
+    }
+});
 
 // 点击遮罩关闭弹窗
 document.addEventListener('click', (e) => {

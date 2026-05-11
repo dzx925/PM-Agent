@@ -112,24 +112,57 @@ async function getSkillContent(type) {
 /**
  * 解析 Skill 工作流程步骤
  */
-function parseSkillSteps(skillContent) {
+function parseSkillSteps(skillContent, mode = 'all') {
   const steps = [];
   
-  // 匹配 "## 工作流程" 部分
-  const workflowMatch = skillContent.match(/## 工作流程[\s\S]*?(?=## |\n## |$)/);
-  if (workflowMatch) {
-    const workflowSection = workflowMatch[0];
-    
-    // 匹配编号列表项
-    const stepRegex = /(\d+)\.\s*\*\*([^*]+)\*\*[:：]\s*(.+?)(?=\n\d+\.|\n## |$)/gs;
+  // 根据模式选择不同的工作流程部分
+  let workflowSection = '';
+  
+  if (mode === 'prd') {
+    // 模式2：从业务场景直接生成PRD - 解析"模式2"部分
+    const mode2Match = skillContent.match(/### 模式2：从业务场景直接生成PRD[\s\S]*?(?=### 模式1|## |\n## |$)/);
+    if (mode2Match) {
+      workflowSection = mode2Match[0];
+    }
+  } else if (mode === 'prototype') {
+    // 模式1：从原型生成 - 解析"模式1"部分
+    const mode1Match = skillContent.match(/### 模式1：从原型生成PRD[\s\S]*?(?=### 模式2|## |\n## |$)/);
+    if (mode1Match) {
+      workflowSection = mode1Match[0];
+    }
+  }
+  
+  // 如果没有找到特定模式的工作流程，尝试解析通用的工作流程
+  if (!workflowSection) {
+    const workflowMatch = skillContent.match(/## 工作流程[\s\S]*?(?=## |\n## |$)/);
+    if (workflowMatch) {
+      workflowSection = workflowMatch[0];
+    }
+  }
+  
+  if (workflowSection) {
+    // 匹配阶段标题（#### 阶段X：标题）
+    const stageRegex = /#### (\d+)-(\d+)[:：]\s*(.+?)(?=\n#### |\n##### |\n## |$)/gs;
     let match;
     
-    while ((match = stepRegex.exec(workflowSection)) !== null) {
+    while ((match = stageRegex.exec(workflowSection)) !== null) {
       steps.push({
         number: parseInt(match[1]),
-        title: match[2].trim(),
-        description: match[3].trim().replace(/\n/g, ' ')
+        title: match[3].trim(),
+        description: ''
       });
+    }
+    
+    // 如果没有匹配到，尝试匹配简单的编号列表
+    if (steps.length === 0) {
+      const stepRegex = /(\d+)\.\s*\*\*([^*]+)\*\*[:：]\s*(.+?)(?=\n\d+\.|\n## |$)/gs;
+      while ((match = stepRegex.exec(workflowSection)) !== null) {
+        steps.push({
+          number: parseInt(match[1]),
+          title: match[2].trim(),
+          description: match[3].trim().replace(/\n/g, ' ')
+        });
+      }
     }
   }
   
@@ -426,10 +459,25 @@ app.post('/generate', async (req, res) => {
       getSkillContent('prd')
     ]);
     
-    // 解析步骤
-    let prototypeSteps = parseSkillSteps(prototypeSkill);
-    let prdSteps = parseSkillSteps(prdSkill);
+    // 解析步骤 - 根据生成模式解析不同的步骤
+    let prototypeSteps = [];
+    let prdSteps = [];
     
+    if (generationMode === 'prototype') {
+      // 只生成原型 - 解析原型Skill的步骤
+      prototypeSteps = parseSkillSteps(prototypeSkill, 'prototype');
+      prdSteps = [];
+    } else if (generationMode === 'prd') {
+      // 只生成PRD - 解析PRD Skill的模式2步骤（从业务场景直接生成）
+      prototypeSteps = [];
+      prdSteps = parseSkillSteps(prdSkill, 'prd');
+    } else {
+      // 全部生成 - 解析所有步骤
+      prototypeSteps = parseSkillSteps(prototypeSkill, 'prototype');
+      prdSteps = parseSkillSteps(prdSkill, 'prd');
+    }
+    
+    console.log('生成模式:', generationMode);
     console.log('原型步骤数量:', prototypeSteps.length);
     console.log('原型步骤:', prototypeSteps.map(s => s.title));
     console.log('PRD步骤数量:', prdSteps.length);
@@ -462,24 +510,28 @@ app.post('/generate', async (req, res) => {
         prdSteps: []  // 空数组，不显示PRD步骤
       });
     } else if (generationMode === 'prd') {
-      // 只生成PRD - 检查是否有已有原型
-      const task = sessionId ? getGenerationTask(sessionId) : null;
-      const existingHtml = task?.results?.html || req.body.intermediateResults?.html;
+      // 只生成PRD - 支持两种模式：
+      // 1. 有已有原型：基于原型生成PRD
+      // 2. 无原型：直接从业务场景生成PRD（原型部分为占位符）
       
-      if (!existingHtml) {
-        sendSSE(res, { 
-          type: 'error', 
-          message: '只生成PRD模式需要提供已有原型。请先生成原型或上传HTML文件。' 
-        });
-        res.end();
-        return;
-      }
+      // prdSteps 已经根据模式解析好了
+      // 如果解析为空，使用备用步骤作为兜底
+      const finalPrdSteps = prdSteps.length > 0 ? prdSteps : [
+        { number: 1, title: '业务提炼', description: '从业务场景提炼需求、角色、目标' },
+        { number: 2, title: 'PRD章节生成', description: '生成业务、分析、方案等章节' },
+        { number: 3, title: '功能模块生成', description: '生成各功能模块详情' },
+        { number: 4, title: '方案合并', description: '合并为完整方案章节' },
+        { number: 5, title: 'PRD优化', description: '优化并输出最终PRD' }
+      ];
       
-      // 只发送PRD步骤
+      console.log('=== PRD模式：发送步骤 ===');
+      console.log('finalPrdSteps:', finalPrdSteps.map(s => s.title));
+      
+      // 只发送PRD步骤（不显示原型步骤）
       sendSSE(res, { 
         type: 'steps', 
         prototypeSteps: [],  // 空数组，不显示原型步骤
-        prdSteps
+        prdSteps: finalPrdSteps
       });
     } else {
       // 全部生成 - 发送所有步骤
@@ -490,12 +542,13 @@ app.post('/generate', async (req, res) => {
       });
     }
     
-    // 如果只生成PRD，跳过原型生成阶段
+    // 如果只生成PRD，跳过原型生成阶段，直接进入PRD生成
     if (generationMode === 'prd') {
-      // 直接使用已有原型生成PRD
-      const html = existingHtml;
+      // 检查是否有已有原型
+      const task = sessionId ? getGenerationTask(sessionId) : null;
+      const existingHtml = task?.results?.html || req.body.intermediateResults?.html;
       
-      // 阶段2: PRD生成
+      // 阶段: PRD生成（直接从业务场景生成，无需原型）
       sendSSE(res, { 
         type: 'phase', 
         phase: 'prd', 
@@ -503,14 +556,84 @@ app.post('/generate', async (req, res) => {
         skill: 'pm-prd-skills'
       });
       
-      // ... PRD生成逻辑（复用原有代码）
-      // 为简化，这里先返回错误提示
-      sendSSE(res, { 
-        type: 'error', 
-        message: '只生成PRD功能正在开发中，请使用全部生成模式。' 
-      });
-      res.end();
-      return;
+      // PRD生成逻辑
+      try {
+        // 步骤1: 业务提炼
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prd',
+          step: 1,
+          totalSteps: prdSteps.length || 6,
+          stepData: { title: '业务提炼', description: '从业务场景提炼需求、角色、目标' },
+          progress: 10,
+          status: 'ai-generating'
+        });
+        
+        const businessPrompt = `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主要功能模块有哪些\n4. 业务流程是什么\n\n请用结构化方式输出，为后续PRD生成做准备。`;
+        
+        const businessResult = await callSiliconFlow(prdSkill, businessPrompt, apiKey, (msg) => {
+          sendSSE(res, {
+            type: 'progress',
+            phase: 'prd',
+            step: 1,
+            totalSteps: prdSteps.length || 6,
+            stepData: { title: '业务提炼', description: msg },
+            progress: 20,
+            status: 'ai-generating'
+          });
+        });
+        
+        // 步骤2: PRD章节生成
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prd',
+          step: 2,
+          totalSteps: prdSteps.length || 6,
+          stepData: { title: '生成PRD章节', description: '生成业务、分析、方案等章节' },
+          progress: 40,
+          status: 'ai-generating'
+        });
+        
+        const prdPrompt = `基于以下业务分析生成完整PRD文档：\n\n${businessResult}\n\n请生成完整的PRD文档，包含：\n1. 业务背景和目标\n2. 功能需求\n3. 业务流程\n4. 数据结构\n5. 非功能性需求\n6. 上线计划\n\n注意：由于没有提供原型，原型截图部分请标注"【原型待补充】"。\n\n请使用Markdown格式输出完整PRD。`;
+        
+        const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
+          sendSSE(res, {
+            type: 'progress',
+            phase: 'prd',
+            step: 2,
+            totalSteps: prdSteps.length || 6,
+            stepData: { title: '生成PRD章节', description: msg },
+            progress: 70,
+            status: 'ai-generating'
+          });
+        });
+        
+        // 发送PRD结果
+        sendSSE(res, {
+          type: 'result',
+          html: existingHtml || null,
+          prd: prdResult,
+          yaml: null
+        });
+        
+        // 完成
+        sendSSE(res, {
+          type: 'complete',
+          progress: 100,
+          html: existingHtml || null,
+          prd: prdResult,
+          scene: scene
+        });
+        
+        res.end();
+        return;
+        
+      } catch (error) {
+        console.error('PRD生成失败:', error.message);
+        sendSSE(res, { type: 'error', message: `PRD生成失败: ${error.message}` });
+        res.end();
+        return;
+      }
     }
     
     // 阶段1: 原型生成（逐个步骤处理）
