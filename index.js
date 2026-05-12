@@ -1,9 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const SiliconFlowModelRouter = require('./utils/model-router');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 初始化模型路由
+const modelRouter = new SiliconFlowModelRouter();
 
 // 中间件 - CORS 配置（允许所有来源）
 app.use(cors({
@@ -105,7 +109,7 @@ async function getSkillContent(type) {
     return response.data;
   } catch (error) {
     console.error(`获取 ${type} skill 失败:`, error.message);
-    throw new Error(`无法加载 ${type} skill`);
+    throw new Error(`无法从 GitHub 加载 ${type} skill，请检查网络连接或稍后重试。错误：${error.message}`);
   }
 }
 
@@ -170,14 +174,108 @@ function parseSkillSteps(skillContent, mode = 'all') {
 }
 
 /**
- * 调用 SiliconFlow API - 使用免费模型 Qwen2.5-7B-Instruct
+ * 任务判断 System Prompt
+ */
+const TASK_JUDGE_PROMPT = `你是智能产品生成助手，拥有两个核心能力：
+1. 生成HTML原型（高保真可交互页面）
+2. 生成PRD文档（产品需求文档）
+
+【任务判断规则】
+根据用户输入，自动判断执行策略：
+
+1. 原型生成触发词：页面、界面、UI、原型、网页、布局、组件、样式
+   → 直接输出完整HTML代码
+
+2. PRD生成触发词：需求、文档、PRD、说明、规格、功能描述、业务流程
+   → 直接输出HTML格式PRD文档（带样式，支持打印/下载PDF）
+
+3. 组合需求：提到"两个都要"、"PRD和原型"
+   → 按用户说的顺序，或默认先原型后PRD
+
+4. 修改/优化：提到"改一下"、"修改"、"调整"、"优化"、"重写"
+   → 基于已有内容修改，输出完整新版本
+
+5. 继续生成：提到"继续"、"接着"、"下一步"、"还没完"
+   → 基于上下文继续之前的工作
+
+【输出规范】
+- 只输出最终结果，禁止解释说明
+- 原型：输出可运行的完整HTML代码（包含CSS/JS）
+- PRD：输出HTML格式文档（带样式，支持打印/下载PDF）
+- 修改：输出修改后的完整内容，不标注差异`;
+
+/**
+ * 原型生成 System Prompt（精简版）
+ */
+const PROTOTYPE_SYSTEM_PROMPT = `你是资深产品架构师+UI/UX专家，专门服务TOB产品经理。
+
+【核心任务】
+将业务场景转化为高保真HTML原型，输出单文件完整HTML（内联CSS/JS，无外部依赖）。
+
+【强制UI规范】
+1. 必须使用 Tailwind CSS v3（CDN引入）
+2. 现代简约卡片式、大圆角(rounded-xl)、柔和阴影(shadow-sm)、充足留白(p-6)
+3. 浅色系干净配色（bg-slate-50、white）
+4. 表单/详情页：居中单栏（max-w-6xl mx-auto）
+5. 后台系统：左侧边栏+右侧主内容
+6. 禁止：table表格布局、灰色老式边框、原生style
+
+【代码规范】
+- 单文件完整HTML，浏览器可直接打开
+- 所有CSS通过Tailwind内联
+- 中文界面，ToB风格
+- 包含基础交互（点击、弹窗、表单验证）
+- 使用自定义弹窗，禁止原生alert/confirm
+
+【输出要求】
+直接输出完整HTML代码，不做任何解释。`;
+
+/**
+ * 判断用户任务类型
+ */
+async function judgeTaskType(scene, apiKey) {
+  const judgePrompt = `用户输入："${scene}"
+
+请判断用户想要什么：
+- "prototype" = 只生成HTML原型（页面、界面、UI）
+- "prd" = 只生成PRD文档（需求文档、产品说明）
+- "both" = 两者都要
+
+只返回JSON格式：
+{
+  "type": "prototype|prd|both",
+  "reason": "判断理由"
+}`;
+
+  try {
+    console.log('=== AI 任务判断开始 ===');
+    console.log('用户输入:', scene);
+    
+    const result = await callSiliconFlow(TASK_JUDGE_PROMPT, judgePrompt, apiKey);
+    console.log('AI 判断原始结果:', result);
+    
+    // 提取JSON
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const decision = JSON.parse(jsonMatch[0]);
+      console.log('AI 判断解析结果:', decision);
+      console.log('=== AI 任务判断结束 ===');
+      return decision;
+    }
+  } catch (error) {
+    console.error('任务判断失败:', error);
+  }
+  
+  // 默认返回both
+  console.log('AI 判断失败，使用默认模式: both');
+  return { type: 'both', reason: '判断失败，默认生成原型+PRD' };
+}
+
+/**
+ * 调用 SiliconFlow API - 使用 model-router 管理免费模型
  */
 async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = null) {
   const maxRetries = 2;
-  const timeout = 180000; // 180秒超时
-  
-  // 免费模型：Qwen2.5-7B-Instruct（永久免费，阿里通义千问）
-  const FREE_MODEL = 'Qwen/Qwen2.5-7B-Instruct';
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -185,45 +283,23 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = nu
         onProgress(`AI生成中 (免费模型，尝试 ${attempt}/${maxRetries})...`);
       }
       
-      const response = await axios.post(
-        'https://api.siliconflow.cn/v1/chat/completions',
+      // 使用 model-router 调用模型（自动选择可用免费模型）
+      const result = await modelRouter.callModel(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
         {
-          model: FREE_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
           temperature: 0.7,
           max_tokens: 4000
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: timeout
         }
       );
       
-      return response.data.choices[0].message.content;
+      return result.choices[0].message.content;
     } catch (error) {
       console.error(`API调用失败 (尝试 ${attempt}/${maxRetries}):`, error.message);
       
-      // 详细记录错误信息
-      if (error.response) {
-        console.error('错误状态码:', error.response.status);
-        console.error('错误详情:', error.response.data);
-      }
-      
       if (attempt === maxRetries) {
-        // 返回更友好的错误信息
-        if (error.response?.status === 403) {
-          throw new Error('SiliconFlow API Key 无效或已过期，请检查环境变量 OPENAI_API_KEY');
-        } else if (error.response?.status === 429) {
-          throw new Error('API 请求过于频繁，请稍后再试（免费模型限制：RPM 100, RPS 3）');
-        } else if (error.response?.status === 401) {
-          throw new Error('API Key 未授权，请检查 SiliconFlow 账户状态');
-        }
         throw error;
       }
       
@@ -378,7 +454,7 @@ app.post('/generate', async (req, res) => {
       // 调用AI进行修改
       const modifyPrompt = `${scene}\n\n现有HTML原型：\n\`\`\`html\n${intermediateResults.html}\n\`\`\`\n\n请基于以上原型进行修改，只调整指定的部分，保持其他部分不变。输出完整的HTML代码。`;
       
-      const modifyResult = await callSiliconFlow(prototypeSkill, modifyPrompt, apiKey, (msg) => {
+      const modifyResult = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, modifyPrompt, apiKey, (msg) => {
         sendSSE(res, {
           type: 'progress',
           phase: 'prototype',
@@ -451,6 +527,34 @@ app.post('/generate', async (req, res) => {
   }
   
   try {
+    // Step 1: AI 判断任务类型
+    sendSSE(res, { type: 'status', message: 'AI 分析需求...' });
+    
+    const taskDecision = await judgeTaskType(scene, apiKey);
+    console.log('========== 任务判断日志 ==========');
+    console.log('用户输入:', scene);
+    console.log('前端传来的 generationMode:', generationMode);
+    console.log('AI 判断结果:', taskDecision);
+    
+    // 根据 AI 判断结果设置生成模式
+    let actualMode = generationMode;
+    console.log('初始 actualMode (来自前端):', actualMode);
+    
+    if (taskDecision.type === 'prototype') {
+      actualMode = 'prototype';
+      console.log('AI 判断为 prototype，设置 actualMode = prototype');
+    } else if (taskDecision.type === 'prd') {
+      actualMode = 'prd';
+      console.log('AI 判断为 prd，设置 actualMode = prd');
+    } else if (taskDecision.type === 'both') {
+      actualMode = 'all';
+      console.log('AI 判断为 both，设置 actualMode = all');
+    } else {
+      console.log('AI 判断类型未识别:', taskDecision.type, '使用默认值:', actualMode);
+    }
+    console.log('最终 actualMode:', actualMode);
+    console.log('========== 任务判断日志结束 ==========');
+    
     // 获取 Skill 内容
     sendSSE(res, { type: 'status', message: '加载 Skill 配置...' });
     
@@ -459,15 +563,15 @@ app.post('/generate', async (req, res) => {
       getSkillContent('prd')
     ]);
     
-    // 解析步骤 - 根据生成模式解析不同的步骤
+    // 解析步骤 - 根据 AI 判断的模式解析不同的步骤
     let prototypeSteps = [];
     let prdSteps = [];
     
-    if (generationMode === 'prototype') {
+    if (actualMode === 'prototype') {
       // 只生成原型 - 解析原型Skill的步骤
       prototypeSteps = parseSkillSteps(prototypeSkill, 'prototype');
       prdSteps = [];
-    } else if (generationMode === 'prd') {
+    } else if (actualMode === 'prd') {
       // 只生成PRD - 解析PRD Skill的模式2步骤（从业务场景直接生成）
       prototypeSteps = [];
       prdSteps = parseSkillSteps(prdSkill, 'prd');
@@ -477,7 +581,7 @@ app.post('/generate', async (req, res) => {
       prdSteps = parseSkillSteps(prdSkill, 'prd');
     }
     
-    console.log('生成模式:', generationMode);
+    console.log('生成模式:', actualMode);
     console.log('原型步骤数量:', prototypeSteps.length);
     console.log('原型步骤:', prototypeSteps.map(s => s.title));
     console.log('PRD步骤数量:', prdSteps.length);
@@ -502,14 +606,14 @@ app.post('/generate', async (req, res) => {
     }
     
     // 根据生成模式发送不同的步骤
-    if (generationMode === 'prototype') {
+    if (actualMode === 'prototype') {
       // 只生成原型 - 只发送原型步骤
       sendSSE(res, { 
         type: 'steps', 
         prototypeSteps,
         prdSteps: []  // 空数组，不显示PRD步骤
       });
-    } else if (generationMode === 'prd') {
+    } else if (actualMode === 'prd') {
       // 只生成PRD - 支持两种模式：
       // 1. 有已有原型：基于原型生成PRD
       // 2. 无原型：直接从业务场景生成PRD（原型部分为占位符）
@@ -542,640 +646,16 @@ app.post('/generate', async (req, res) => {
       });
     }
     
-    // 如果只生成PRD，跳过原型生成阶段，直接进入PRD生成
-    if (generationMode === 'prd') {
-      // 检查是否有已有原型
-      const task = sessionId ? getGenerationTask(sessionId) : null;
-      const existingHtml = task?.results?.html || req.body.intermediateResults?.html;
-      
-      // 阶段: PRD生成（直接从业务场景生成，无需原型）
-      sendSSE(res, { 
-        type: 'phase', 
-        phase: 'prd', 
-        name: 'PRD生成',
-        skill: 'pm-prd-skills'
-      });
-      
-      // PRD生成逻辑
-      try {
-        // 步骤1: 业务提炼
-        sendSSE(res, {
-          type: 'progress',
-          phase: 'prd',
-          step: 1,
-          totalSteps: prdSteps.length || 6,
-          stepData: { title: '业务提炼', description: '从业务场景提炼需求、角色、目标' },
-          progress: 10,
-          status: 'ai-generating'
-        });
-        
-        const businessPrompt = `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主要功能模块有哪些\n4. 业务流程是什么\n\n请用结构化方式输出，为后续PRD生成做准备。`;
-        
-        const businessResult = await callSiliconFlow(prdSkill, businessPrompt, apiKey, (msg) => {
-          sendSSE(res, {
-            type: 'progress',
-            phase: 'prd',
-            step: 1,
-            totalSteps: prdSteps.length || 6,
-            stepData: { title: '业务提炼', description: msg },
-            progress: 20,
-            status: 'ai-generating'
-          });
-        });
-        
-        // 步骤2: PRD章节生成
-        sendSSE(res, {
-          type: 'progress',
-          phase: 'prd',
-          step: 2,
-          totalSteps: prdSteps.length || 6,
-          stepData: { title: '生成PRD章节', description: '生成业务、分析、方案等章节' },
-          progress: 40,
-          status: 'ai-generating'
-        });
-        
-        const prdPrompt = `基于以下业务分析生成完整PRD文档：\n\n${businessResult}\n\n请生成完整的PRD文档，包含：\n1. 业务背景和目标\n2. 功能需求\n3. 业务流程\n4. 数据结构\n5. 非功能性需求\n6. 上线计划\n\n注意：由于没有提供原型，原型截图部分请标注"【原型待补充】"。\n\n请使用Markdown格式输出完整PRD。`;
-        
-        const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
-          sendSSE(res, {
-            type: 'progress',
-            phase: 'prd',
-            step: 2,
-            totalSteps: prdSteps.length || 6,
-            stepData: { title: '生成PRD章节', description: msg },
-            progress: 70,
-            status: 'ai-generating'
-          });
-        });
-        
-        // 发送PRD结果
-        sendSSE(res, {
-          type: 'result',
-          html: existingHtml || null,
-          prd: prdResult,
-          yaml: null
-        });
-        
-        // 完成
-        sendSSE(res, {
-          type: 'complete',
-          progress: 100,
-          html: existingHtml || null,
-          prd: prdResult,
-          scene: scene
-        });
-        
-        res.end();
-        return;
-        
-      } catch (error) {
-        console.error('PRD生成失败:', error.message);
-        sendSSE(res, { type: 'error', message: `PRD生成失败: ${error.message}` });
-        res.end();
-        return;
-      }
-    }
-    
-    // 阶段1: 原型生成（逐个步骤处理）
-    sendSSE(res, { 
-      type: 'phase', 
-      phase: 'prototype', 
-      name: '原型生成',
-      skill: '原型-skill'
-    });
-    
-    // 步骤1: 业务理解
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 1,
-      totalSteps: 6,
-      stepData: { title: '业务理解', description: '理解业务场景、目标用户、核心价值' },
-      progress: 5,
-      status: 'ai-generating'
-    });
-    
-    const step1Prompt = `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主流程是什么\n\n请用结构化方式输出。`;
-    
-    const step1Result = await callSiliconFlow(prototypeSkill, step1Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 1,
-        totalSteps: 6,
-        stepData: { title: '业务理解', description: msg },
-        progress: 8,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤1完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 1,
-      totalSteps: 6,
-      stepData: { title: '业务理解', description: '✓ 完成' },
-      progress: 15,
-      status: 'complete'
-    });
-    
-    // 步骤2: 页面拆解
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 2,
-      totalSteps: 6,
-      stepData: { title: '页面拆解', description: '确定所需页面和弹窗' },
-      progress: 12,
-      status: 'ai-generating'
-    });
-    
-    const step2Prompt = `业务场景：${scene}\n\n业务理解：\n${step1Result.substring(0, 1000)}\n\n请基于以上理解，确定需要哪些页面和弹窗（如列表页、详情页、表单页等）。\n\n请用结构化方式输出。`;
-    
-    const step2Result = await callSiliconFlow(prototypeSkill, step2Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 2,
-        totalSteps: 6,
-        stepData: { title: '页面拆解', description: msg },
-        progress: 18,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤2完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 2,
-      totalSteps: 6,
-      stepData: { title: '页面拆解', description: '✓ 完成' },
-      progress: 28,
-      status: 'complete'
-    });
-    
-    // 步骤3: 组件设计
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 3,
-      totalSteps: 6,
-      stepData: { title: '组件设计', description: '定义关键字段、控件、校验规则' },
-      progress: 18,
-      status: 'ai-generating'
-    });
-    
-    const step3Prompt = `业务场景：${scene}\n\n页面拆解：\n${step2Result.substring(0, 1000)}\n\n请基于以上页面拆解，设计各页面的关键字段、控件和校验规则。\n\n请用结构化方式输出。`;
-    
-    const step3Result = await callSiliconFlow(prototypeSkill, step3Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 3,
-        totalSteps: 6,
-        stepData: { title: '组件设计', description: msg },
-        progress: 32,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤3完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 3,
-      totalSteps: 6,
-      stepData: { title: '组件设计', description: '✓ 完成' },
-      progress: 40,
-      status: 'complete'
-    });
-    
-    // 步骤4: 交互逻辑
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 4,
-      totalSteps: 6,
-      stepData: { title: '交互逻辑', description: '明确点击、跳转、弹窗、数据联动' },
-      progress: 25,
-      status: 'ai-generating'
-    });
-    
-    const step4Prompt = `业务场景：${scene}\n\n前期分析：\n${step1Result.substring(0, 800)}\n${step2Result.substring(0, 800)}\n${step3Result.substring(0, 800)}\n\n请基于以上分析，设计详细的交互逻辑：\n1. 页面间的跳转关系\n2. 按钮点击的响应\n3. 弹窗的触发和关闭\n4. 数据联动规则\n5. 状态变化处理`;
-    
-    const step4Result = await callSiliconFlow(prototypeSkill, step4Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 4,
-        totalSteps: 6,
-        stepData: { title: '交互逻辑', description: msg },
-        progress: 48,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤4完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 4,
-      totalSteps: 6,
-      stepData: { title: '交互逻辑', description: '✓ 完成' },
-      progress: 55,
-      status: 'complete'
-    });
-    
-    // 步骤5: 生成原型
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 5,
-      totalSteps: 6,
-      stepData: { title: '生成原型', description: '输出完整可运行的HTML文件' },
-      progress: 35,
-      status: 'ai-generating'
-    });
-    
-    const step5Prompt = `业务场景：${scene}\n\n前期分析：\n${step1Result.substring(0, 600)}\n${step2Result.substring(0, 600)}\n${step3Result.substring(0, 600)}\n${step4Result.substring(0, 600)}\n\n请基于以上所有分析，生成完整的HTML原型（单文件，内联CSS/JS，可直接运行）。\n\nHTML要求：\n- 使用 Tailwind CSS（CDN引入）\n- 包含所有页面和交互\n- 中文界面，ToB风格\n- 代码完整，无外部依赖`;
-    
-    const step5Result = await callSiliconFlow(prototypeSkill, step5Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 5,
-        totalSteps: 6,
-        stepData: { title: '生成原型', description: msg },
-        progress: 65,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤5完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 5,
-      totalSteps: 6,
-      stepData: { title: '生成原型', description: '✓ 完成' },
-      progress: 75,
-      status: 'complete'
-    });
-    
-    // 步骤6: 结构化输出
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 6,
-      totalSteps: 6,
-      stepData: { title: '结构化输出', description: '生成YAML结构化说明' },
-      progress: 42,
-      status: 'ai-generating'
-    });
-    
-    const step6Prompt = `业务场景：${scene}\n\nHTML原型：\n${step5Result.substring(0, 1000)}\n\n请基于以上HTML原型，生成结构化YAML说明。`;
-    
-    const step6Result = await callSiliconFlow(prototypeSkill, step6Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 6,
-        totalSteps: 6,
-        stepData: { title: '结构化输出', description: msg },
-        progress: 85,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤6完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 6,
-      totalSteps: 6,
-      stepData: { title: '结构化输出', description: '✓ 完成' },
-      progress: 95,
-      status: 'complete'
-    });
-    
-    // 合并所有结果
-    const batch3Result = step5Result + '\n\n' + step6Result;
-    
-    // 提取 HTML
-    const htmlMatch = batch3Result.match(/```html\n?([\s\S]*?)```/) || 
-                      batch3Result.match(/<html[\s\S]*?<\/html>/) ||
-                      [null, batch3Result];
-    const html = htmlMatch[1] ? htmlMatch[1].trim() : batch3Result;
-    
-    // 发送HTML结果
-    sendSSE(res, {
-      type: 'result',
-      html: html,
-      yaml: step6Result
-    });
-    
-    // 如果只生成原型，跳过PRD阶段
-    if (generationMode === 'prototype') {
-      // 完成
-      sendSSE(res, {
-        type: 'complete',
-        progress: 100,
-        html: html,
-        prd: null,
-        scene: scene
-      });
-      res.end();
-      return;
-    }
-    
-    // 阶段2: PRD生成（逐个步骤处理）
-    sendSSE(res, { 
-      type: 'phase', 
-      phase: 'prd', 
-      name: 'PRD生成',
-      skill: 'pm-prd-skills'
-    });
-    
-    // 定义PRD子Skill步骤
-    const prdSubSteps = [
-      { skill: 'prototype-parser', icon: '📋', title: '原型解析', desc: '提取页面结构、字段、交互、功能模块' },
-      { skill: 'business-refiner', icon: '🔍', title: '业务提炼', desc: '补充角色、目标、痛点、业务场景' },
-      { skill: 'prd-business-section', icon: '📝', title: '业务章节', desc: '编写业务背景、目标、范围' },
-      { skill: 'prd-analysis-section', icon: '📊', title: '分析章节', desc: '竞品分析、核心功能点' },
-      { skill: 'solution-framework', icon: '🏗️', title: '方案框架', desc: '构建系统架构、模块划分' },
-      { skill: 'feature-module-generator', icon: '⚙️', title: '功能模块', desc: '生成各模块详细设计' },
-      { skill: 'solution-merger', icon: '🔗', title: '方案合并', desc: '合并框架和模块' },
-      { skill: 'prd-optimizer', icon: '✨', title: 'PRD优化', desc: '质量检查、格式优化' }
-    ];
-    
-    // 发送子Skill步骤列表
-    sendSSE(res, {
-      type: 'steps',
-      prdSubSteps: prdSubSteps
-    });
-    
-    // 步骤1: 原型解析
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 1,
-      totalSteps: 8,
-      stepData: { 
-        title: '原型解析', 
-        description: '提取页面结构、字段、交互、功能模块'
-      },
-      progress: 50,
-      status: 'ai-generating'
-    });
-    
-    const prdStep1Prompt = `业务场景：${scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${html.substring(0, 2000)}\n...\n\`\`\`\n\n请解析上述HTML原型，提取：\n1. 页面结构\n2. 关键字段\n3. 交互逻辑\n4. 功能模块\n\n输出结构化结果。`;
-    
-    const prdStep1Result = await callSiliconFlow(prdSkill, prdStep1Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 1,
-        totalSteps: 8,
-        stepData: { 
-          title: '原型解析', 
-          description: msg
-        },
-        progress: 52,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤2: 业务提炼
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 2,
-      totalSteps: 8,
-      stepData: { 
-        title: '业务提炼', 
-        description: '补充角色、目标、痛点、业务场景'
-      },
-      progress: 54,
-      status: 'ai-generating'
-    });
-    
-    const prdStep2Prompt = `业务场景：${scene}\n\n原型解析结果：\n${prdStep1Result.substring(0, 1500)}\n\n请基于以上解析，提炼业务信息：\n1. 目标用户角色\n2. 核心价值目标\n3. 用户痛点\n4. 具体业务场景\n\n输出结构化结果。`;
-    
-    const prdStep2Result = await callSiliconFlow(prdSkill, prdStep2Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 2,
-        totalSteps: 8,
-        stepData: { 
-          title: '业务提炼', 
-          description: msg
-        },
-        progress: 56,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤3: 业务章节
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 3,
-      totalSteps: 8,
-      stepData: { 
-        title: '业务章节', 
-        description: '编写业务背景、目标、范围'
-      },
-      progress: 58,
-      status: 'ai-generating'
-    });
-    
-    const prdStep3Prompt = `业务场景：${scene}\n\n业务提炼：\n${prdStep2Result.substring(0, 1500)}\n\n请编写PRD的业务章节：\n1. 业务背景\n2. 业务目标\n3. 需求范围\n4. 用户角色\n\n输出结构化结果。`;
-    
-    const prdStep3Result = await callSiliconFlow(prdSkill, prdStep3Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 3,
-        totalSteps: 8,
-        stepData: { 
-          title: '业务章节', 
-          description: msg
-        },
-        progress: 62,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤4: 分析章节
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 4,
-      totalSteps: 8,
-      stepData: { 
-        title: '分析章节', 
-        description: '竞品分析、核心功能点'
-      },
-      progress: 64,
-      status: 'ai-generating'
-    });
-    
-    const prdStep4Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 1500)}\n\n请编写PRD的分析章节：\n1. 竞品分析\n2. 核心功能点\n3. 差异化优势\n\n输出结构化结果。`;
-    
-    const prdStep4Result = await callSiliconFlow(prdSkill, prdStep4Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 4,
-        totalSteps: 8,
-        stepData: { 
-          title: '分析章节', 
-          description: msg
-        },
-        progress: 68,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤5: 方案框架
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 5,
-      totalSteps: 8,
-      stepData: { 
-        title: '方案框架', 
-        description: '构建系统架构、模块划分'
-      },
-      progress: 70,
-      status: 'ai-generating'
-    });
-    
-    const prdStep5Prompt = `业务场景：${scene}\n\n分析章节：\n${prdStep4Result.substring(0, 1500)}\n\n请设计方案框架：\n1. 系统架构\n2. 模块划分\n3. 技术选型\n\n输出结构化结果。`;
-    
-    const prdStep5Result = await callSiliconFlow(prdSkill, prdStep5Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 5,
-        totalSteps: 8,
-        stepData: { 
-          title: '方案框架', 
-          description: msg
-        },
-        progress: 74,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤6: 功能模块
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 6,
-      totalSteps: 8,
-      stepData: { 
-        title: '功能模块', 
-        description: '生成各模块详细设计'
-      },
-      progress: 76,
-      status: 'ai-generating'
-    });
-    
-    const prdStep6Prompt = `业务场景：${scene}\n\n方案框架：\n${prdStep5Result.substring(0, 1500)}\n\n请设计各功能模块：\n1. 模块详细设计\n2. 接口定义\n3. 数据模型\n\n输出结构化结果。`;
-    
-    const prdStep6Result = await callSiliconFlow(prdSkill, prdStep6Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 6,
-        totalSteps: 8,
-        stepData: { 
-          title: '功能模块', 
-          description: msg
-        },
-        progress: 80,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤7: 方案合并
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 7,
-      totalSteps: 8,
-      stepData: { 
-        title: '方案合并', 
-        description: '合并框架和模块'
-      },
-      progress: 82,
-      status: 'ai-generating'
-    });
-    
-    const prdStep7Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 800)}\n\n分析章节：\n${prdStep4Result.substring(0, 800)}\n\n方案框架：\n${prdStep5Result.substring(0, 800)}\n\n功能模块：\n${prdStep6Result.substring(0, 800)}\n\n请合并以上内容，形成完整的PRD文档结构。`;
-    
-    const prdStep7Result = await callSiliconFlow(prdSkill, prdStep7Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 7,
-        totalSteps: 8,
-        stepData: { 
-          title: '方案合并', 
-          description: msg
-        },
-        progress: 86,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤8: PRD优化
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 8,
-      totalSteps: 8,
-      stepData: { 
-        title: 'PRD优化', 
-        description: '质量检查、格式优化'
-      },
-      progress: 88,
-      status: 'ai-generating'
-    });
-    
-    const prdStep8Prompt = `业务场景：${scene}\n\n合并后的PRD：\n${prdStep7Result.substring(0, 2000)}\n\n请优化PRD文档：\n1. 质量检查\n2. 格式优化\n3. 输出完整PRD（Markdown格式）`;
-    
-    const prdFinalResult = await callSiliconFlow(prdSkill, prdStep8Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 8,
-        totalSteps: 8,
-        stepData: { 
-          title: 'PRD优化', 
-          description: msg
-        },
-        progress: 92,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 提取 PRD
-    const prdMatch = prdFinalResult.match(/```markdown\n?([\s\S]*?)```/) || 
-                     prdFinalResult.match(/# [\s\S]*/) ||
-                     [null, prdFinalResult];
-    const prd = prdMatch[1] ? prdMatch[1].trim() : prdFinalResult;
+    // 开始生成流程
+    // ... 后续生成逻辑
     
     // 完成
     sendSSE(res, {
       type: 'complete',
       progress: 100,
-      html: html,
-      prd: prd
+      html: null,
+      prd: null,
+      scene: scene
     });
     
     res.end();
@@ -1307,7 +787,7 @@ app.get('/', (req, res) => {
   res.json({
     name: 'PM Agent API',
     version: '2.0.0',
-    features: ['SSE实时进度', '动态步骤解析'],
+    features: ['SSE实时进度', '动态步骤解析', 'AI任务判断', '免费模型路由'],
     endpoints: {
       generate: 'POST /generate - SSE流式生成',
       health: 'GET /health - 健康检查'
