@@ -1066,12 +1066,18 @@ function updateProgressMessage(messageId, data) {
     
     // 找到当前正在进行的步骤索引
     let currentStepIndex = -1;
+    console.log('updateProgressMessage: data.currentStep=', data.currentStep);
+    console.log('updateProgressMessage: stepsToRender=', stepsToRender.map(s => s.title || s));
     if (data.currentStep) {
-        currentStepIndex = stepsToRender.findIndex(s => 
-            data.currentStep === s.title || 
-            data.currentStep.includes(s.title) ||
-            s.title.includes(data.currentStep)
-        );
+        currentStepIndex = stepsToRender.findIndex(s => {
+            const stepTitle = s.title || s;
+            const match = data.currentStep === stepTitle || 
+                data.currentStep.includes(stepTitle) ||
+                stepTitle.includes(data.currentStep);
+            console.log(`  检查步骤 "${stepTitle}": ${match}`);
+            return match;
+        });
+        console.log('updateProgressMessage: currentStepIndex=', currentStepIndex);
     }
     
     // 如果生成完成，所有步骤都标记为完成
