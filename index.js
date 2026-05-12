@@ -426,6 +426,14 @@ app.post('/generate', async (req, res) => {
   const validModes = ['all', 'prototype', 'prd'];
   const generationMode = validModes.includes(mode) ? mode : 'all';
   
+  console.log('========== /generate 接口日志 ==========');
+  console.log('接收到的 mode:', mode);
+  console.log('处理后的 generationMode:', generationMode);
+  console.log('intermediateResults 是否存在:', !!intermediateResults);
+  console.log('intermediateResults.html 是否存在:', !!(intermediateResults?.html));
+  console.log('scene:', scene?.substring(0, 50));
+  console.log('========================================');
+  
   // 如果是修改模式，直接基于现有HTML进行修改
   if (isModify && intermediateResults?.html) {
     console.log('修改模式：基于现有HTML直接修改');
