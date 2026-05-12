@@ -313,6 +313,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 async function startGeneration(scene, isModify = false, mode = 'all') {
+    console.log('开始生成:', { scene: scene.substring(0, 50), isModify, mode });
     state.isGenerating = true;
     generationSteps = [];
     allStepsFromBackend = []; // 重置步骤列表
@@ -324,18 +325,34 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
     currentProgressMessageId = addProgressMessage(mode);
     
     try {
-        const response = await fetch(`${API_BASE_URL}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                scene,
-                sessionId: state.sessionId,
-                startFromStep: state.startFromStep,
-                intermediateResults: state.intermediateResults,
-                isModify,
-                mode
-            })
-        });
+        console.log('发送请求到:', `${API_BASE_URL}/generate`);
+        console.log('请求体:', JSON.stringify({
+            scene: scene.substring(0, 50),
+            sessionId: state.sessionId,
+            mode,
+            isModify
+        }));
+        
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scene,
+                    sessionId: state.sessionId,
+                    startFromStep: state.startFromStep,
+                    intermediateResults: state.intermediateResults,
+                    isModify,
+                    mode
+                })
+            });
+        } catch (fetchError) {
+            console.error('Fetch 错误:', fetchError);
+            throw new Error(`网络请求失败: ${fetchError.message}`);
+        }
+        
+        console.log('收到响应:', response.status);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -389,11 +406,17 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
             return;
         }
         
+        // 显示错误给用户
+        const errorMsg = error.message || '未知错误';
         updateProgressMessage(currentProgressMessageId, {
             status: 'error',
-            error: error.message
+            error: errorMsg
         });
-        addMessage('assistant', `❌ 生成失败：${error.message}`);
+        addMessage('assistant', `❌ 生成失败：${errorMsg}`);
+        
+        // 确保状态重置
+        state.isGenerating = false;
+        updateSendButtonState();
     } finally {
         state.isGenerating = false;
         saveState();
@@ -550,12 +573,17 @@ function renderMessage(message) {
     // 如果是进度消息，使用进度卡片样式
     if (message.isProgress) {
         div.classList.add('progress-message');
+        // 根据进度状态显示不同文本
+        let statusText = message.content || '🚀 正在生成...';
+        if (message.progress >= 100) {
+            statusText = '✅ 生成完成';
+        }
         div.innerHTML = `
             <div class="message-avatar">${avatar}</div>
             <div class="message-body">
                 <div class="progress-card">
                     <div class="progress-header">
-                        <span class="progress-status">${message.progress >= 100 ? '✅ 生成完成' : '🚀 正在生成原型...'}</span>
+                        <span class="progress-status">${statusText}</span>
                         <span class="progress-percent">${message.progress || 0}%</span>
                     </div>
                     <div class="progress-bar-container">
