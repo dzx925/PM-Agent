@@ -241,7 +241,13 @@ async function judgeTaskType(scene, apiKey) {
 - "prd" = 只生成PRD文档（需求文档、产品说明）
 - "both" = 两者都要
 
-只返回JSON格式：
+【重要判断规则】
+1. 如果用户明确说"只生成原型"、"只要原型"、"不需要PRD"、"只画页面" → 返回 "prototype"
+2. 如果用户明确说"只生成PRD"、"只要PRD"、"只要文档"、"不需要原型"、"基于原型生成PRD" → 返回 "prd"
+3. 如果用户说"两个都要"、"原型和PRD"、没有明确指定 → 返回 "both"
+4. 如果用户提到"基于已有原型"、"基于现有原型"、"基于这个原型" → 说明已有原型，只需要生成PRD → 返回 "prd"
+
+只返回JSON格式，不要其他内容：
 {
   "type": "prototype|prd|both",
   "reason": "判断理由"

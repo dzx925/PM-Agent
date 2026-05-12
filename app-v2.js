@@ -71,12 +71,12 @@ const SKILL_STEPS = {
 const GENERATION_MODES = {
     prototype: {
         patterns: [
-            /只[画做输出生]原型|只要原型|不需要PRD|不用PRD|只画页面/i
+            /只[画做输出生]原型|只要原型|不需要PRD|不用PRD|只画页面|只输出原型/i
         ]
     },
     prd: {
         patterns: [
-            /只[生成输]出?PRD|只要PRD|只要文档|不需要原型|不用原型/i
+            /只[生成输]出?PRD|只要PRD|只要文档|不需要原型|不用原型|生成prd|输出prd|基于.*原型.*生成.*prd/i
         ]
     }
 };
@@ -1423,9 +1423,16 @@ function handleInputKeydown(event) {
 }
 
 function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// 格式化消息内容（处理换行等）
+function formatMessageContent(content) {
+    if (!content) return '';
+    return escapeHtml(content).replace(/\n/g, '<br>');
 }
 
 function startNewChat() {

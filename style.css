@@ -490,6 +490,19 @@ body {
     background: #c53030;
 }
 
+.send-btn .stop-icon {
+    font-size: 16px;
+    display: none;
+}
+
+.send-btn.stop-mode .send-icon {
+    display: none !important;
+}
+
+.send-btn.stop-mode .stop-icon {
+    display: inline !important;
+}
+
 .input-hint {
     font-size: 11px;
     color: var(--text-muted);
