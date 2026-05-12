@@ -704,10 +704,130 @@ function addResultCardMessage(type, title) {
 
 // 打开指定类型的结果预览
 function openResultPreview(type) {
-    // 切换到对应标签
-    switchTab(type);
-    // 打开预览面板
-    openPreviewPanel();
+    // 在新窗口打开结果
+    const resultData = currentResult[type];
+    if (!resultData) {
+        showAlert('提示', '暂无内容可查看');
+        return;
+    }
+    
+    // 打开新窗口
+    const newWindow = window.open('', '_blank');
+    if (!newWindow) {
+        showAlert('提示', '请允许弹出窗口以查看详情');
+        return;
+    }
+    
+    // 根据类型渲染不同内容
+    let title = '';
+    let content = '';
+    
+    switch(type) {
+        case 'html':
+            title = 'HTML原型预览';
+            // 直接写入HTML内容
+            newWindow.document.write(resultData);
+            newWindow.document.close();
+            return; // HTML直接写入后返回
+            
+        case 'prd':
+            title = 'PRD文档';
+            content = renderMarkdown(resultData);
+            break;
+            
+        case 'yaml':
+            title = 'YAML结构';
+            content = `<pre style="background:#1a202c;color:#e2e8f0;padding:20px;overflow:auto;height:100vh;margin:0;font-family:monospace;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;">${escapeHtml(resultData)}</pre>`;
+            break;
+            
+        default:
+            title = '查看详情';
+            content = `<pre>${escapeHtml(resultData)}</pre>`;
+    }
+    
+    // 写入PRD或YAML内容
+    newWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${title}</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+                    background: #f5f7fa;
+                    padding: 40px 20px;
+                    line-height: 1.8;
+                }
+                .container {
+                    max-width: 800px;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 40px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }
+                h1 { font-size: 28px; margin-bottom: 20px; color: #2d3748; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; }
+                h2 { font-size: 22px; margin: 30px 0 15px; color: #2d3748; }
+                h3 { font-size: 18px; margin: 20px 0 10px; color: #2d3748; }
+                p { margin-bottom: 12px; color: #4a5568; }
+                ul { margin: 12px 0; padding-left: 24px; }
+                li { margin: 6px 0; }
+                code { background: #f5f7fa; padding: 2px 6px; border-radius: 4px; font-family: 'Monaco', 'Consolas', monospace; font-size: 13px; }
+                pre { background: #1a202c; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow: auto; font-family: 'Monaco', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                    border-bottom: 1px solid #e9ecef;
+                }
+                .header h1 { border: none; margin: 0; }
+                .header .subtitle { color: #718096; font-size: 14px; margin-top: 8px; }
+                .download-btn {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 10px 20px;
+                    background: #667eea;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    z-index: 1000;
+                }
+                .download-btn:hover { background: #764ba2; }
+            </style>
+        </head>
+        <body>
+            <button class="download-btn" onclick="downloadContent()">💾 下载</button>
+            <div class="container">
+                <div class="header">
+                    <h1>${title}</h1>
+                    <div class="subtitle">由 HR Agent 生成</div>
+                </div>
+                ${content}
+            </div>
+            <script>
+                function downloadContent() {
+                    const content = ${JSON.stringify(resultData)};
+                    const blob = new Blob([content], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = '${type === 'prd' ? 'PRD文档.md' : type === 'yaml' ? 'structure.yaml' : 'prototype.html'}';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            </script>
+        </body>
+        </html>
+    `);
+    newWindow.document.close();
 }
 
 function renderMarkdown(md) {
