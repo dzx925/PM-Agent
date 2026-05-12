@@ -863,6 +863,19 @@ function updateProgressMessage(messageId, data) {
     // 如果没有后端步骤，使用 generationSteps
     const stepsToRender = allStepsFromBackend.length > 0 ? allStepsFromBackend : generationSteps;
     
+    // 找到当前正在进行的步骤索引
+    let currentStepIndex = -1;
+    if (data.currentStep) {
+        currentStepIndex = stepsToRender.findIndex(s => 
+            data.currentStep === s.title || 
+            data.currentStep.includes(s.title) ||
+            s.title.includes(data.currentStep)
+        );
+    }
+    
+    // 如果生成完成，所有步骤都标记为完成
+    const isComplete = data.status === 'complete' || data.progress >= 100;
+    
     stepItems.forEach((item, index) => {
         const step = stepsToRender[index];
         if (!step) return;
@@ -871,43 +884,33 @@ function updateProgressMessage(messageId, data) {
         const stepStatus = item.querySelector('.step-status');
         
         // 判断步骤状态
-        // 检查当前步骤标题是否包含步骤名称（因为后端可能发送带描述的标题）
-        const isCurrent = data.currentStep && (
-            data.currentStep === step.title || 
-            data.currentStep.includes(step.title) ||
-            step.title.includes(data.currentStep)
-        );
-        
-        // 检查是否已完成（在 generationSteps 中或者进度超过当前步骤）
-        const isCompleted = generationSteps.find(s => 
-            s.title === step.title || 
-            s.title.includes(step.title) ||
-            step.title.includes(s.title)
-        ) || (data.progress >= 95 && index < stepItems.length - 1);
+        const isCompleted = isComplete || index < currentStepIndex;
+        const isCurrent = !isComplete && index === currentStepIndex;
         
         // 更新样式
         item.classList.remove('completed', 'current');
+        if (stepNum) stepNum.classList.remove('done', 'active', 'completed');
+        
         if (isCompleted) {
+            // 已完成 - 显示绿色勾选
             item.classList.add('completed');
             if (stepNum) {
                 stepNum.textContent = '✓';
-                stepNum.classList.add('done');
-                stepNum.classList.remove('active');
+                stepNum.classList.add('completed');
             }
             if (stepStatus) stepStatus.textContent = '';
         } else if (isCurrent) {
+            // 进行中 - 显示蓝色圆点
             item.classList.add('current');
             if (stepNum) {
                 stepNum.textContent = '●';
                 stepNum.classList.add('active');
-                stepNum.classList.remove('done');
             }
             if (stepStatus) stepStatus.textContent = '进行中...';
         } else {
-            // 未开始
+            // 未开始 - 显示数字
             if (stepNum) {
                 stepNum.textContent = index + 1;
-                stepNum.classList.remove('done', 'active');
             }
             if (stepStatus) stepStatus.textContent = '';
         }

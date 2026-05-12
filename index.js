@@ -280,7 +280,7 @@ async function callSiliconFlow(systemPrompt, userPrompt, apiKey, onProgress = nu
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (onProgress) {
-        onProgress(`AI生成中 (免费模型，尝试 ${attempt}/${maxRetries})...`);
+        onProgress(`AI生成中...`);
       }
       
       // 使用 model-router 调用模型（自动选择可用免费模型）

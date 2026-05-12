@@ -1306,6 +1306,15 @@ body {
     color: white;
 }
 
+/* 已完成步骤的样式 */
+.progress-step-item.completed {
+    color: #22c55e;
+}
+
+.progress-step-item.completed .step-title {
+    color: #22c55e;
+}
+
 .step-title {
     flex: 1;
 }
