@@ -663,14 +663,7 @@ function showHTML(html) {
     currentResult.html = html;
     
     // 更新预览面板
-    const frame = document.getElementById('html-preview');
-    const empty = document.getElementById('html-empty');
-    
-    if (frame && empty) {
-        frame.srcdoc = html;
-        frame.style.display = 'block';
-        empty.style.display = 'none';
-    }
+    updateHTMLPreview(html);
     
     // 添加结果卡片消息到对话
     addResultCardMessage('html', 'HTML原型');
@@ -681,14 +674,7 @@ function showPRD(prd) {
     currentResult.prd = prd;
     
     // 更新预览面板
-    const render = document.getElementById('prd-render');
-    const empty = document.getElementById('prd-empty');
-    
-    if (render && empty) {
-        render.innerHTML = renderMarkdown(prd);
-        render.style.display = 'block';
-        empty.style.display = 'none';
-    }
+    updatePRDPreview(prd);
     
     // 添加结果卡片消息到对话
     addResultCardMessage('prd', 'PRD文档');
@@ -699,6 +685,26 @@ function showYAML(yaml) {
     currentResult.yaml = yaml;
     
     // 更新预览面板
+    updateYAMLPreview(yaml);
+    
+    // 添加结果卡片消息到对话
+    addResultCardMessage('yaml', 'YAML结构');
+}
+
+// 仅更新HTML预览面板（不添加结果卡片）
+function updateHTMLPreview(html) {
+    const frame = document.getElementById('html-preview');
+    const empty = document.getElementById('html-empty');
+    
+    if (frame && empty) {
+        frame.srcdoc = html;
+        frame.style.display = 'block';
+        empty.style.display = 'none';
+    }
+}
+
+// 仅更新YAML预览面板（不添加结果卡片）
+function updateYAMLPreview(yaml) {
     const render = document.getElementById('yaml-render');
     const empty = document.getElementById('yaml-empty');
     
@@ -707,9 +713,18 @@ function showYAML(yaml) {
         render.style.display = 'block';
         empty.style.display = 'none';
     }
+}
+
+// 仅更新PRD预览面板（不添加结果卡片）
+function updatePRDPreview(prd) {
+    const render = document.getElementById('prd-render');
+    const empty = document.getElementById('prd-empty');
     
-    // 添加结果卡片消息到对话（可选）
-    // addResultCardMessage('yaml', 'YAML结构');
+    if (render && empty) {
+        render.innerHTML = renderMarkdown(prd);
+        render.style.display = 'block';
+        empty.style.display = 'none';
+    }
 }
 
 // 添加结果卡片消息
@@ -1396,10 +1411,10 @@ function loadChatHistory(chatId) {
             }
         }
         
-        // 恢复预览
-        if (state.intermediateResults.html) showHTML(state.intermediateResults.html);
-        if (state.intermediateResults.yaml) showYAML(state.intermediateResults.yaml);
-        if (state.intermediateResults.prd) showPRD(state.intermediateResults.prd);
+        // 恢复预览（仅更新预览面板，不添加结果卡片到对话）
+        if (state.intermediateResults.html) updateHTMLPreview(state.intermediateResults.html);
+        if (state.intermediateResults.yaml) updateYAMLPreview(state.intermediateResults.yaml);
+        if (state.intermediateResults.prd) updatePRDPreview(state.intermediateResults.prd);
         
         closeModal('load-modal');
         saveState();
