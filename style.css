@@ -450,6 +450,7 @@ body {
     max-height: 120px;
     min-height: 24px;
     font-family: inherit;
+    overflow-y: auto;
 }
 
 #chat-input:focus {
