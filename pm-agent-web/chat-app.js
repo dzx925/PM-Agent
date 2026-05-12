@@ -157,7 +157,8 @@ const COMMAND_PATTERNS = {
         patterns: [
             /^(加载|打开|导入)(.+?)(项目|原型|文件|PRD)?$/,
             /^(继续|接着)(修改|编辑|完善)(.+)$/,
-            /^(把|将)(.+)(加载|导入|打开)(进来|一下)?$/n        ],
+            /^(把|将)(.+)(加载|导入|打开)(进来|一下)?$/
+        ],
         type: 'load',
         extractTarget: (matches) => matches[2] || matches[1]
     },
@@ -177,7 +178,8 @@ const COMMAND_PATTERNS = {
         patterns: [
             /^(下载|导出|保存)(.+?)(文件|原型|PRD|YAML)?$/,
             /^(把|将)(.+)(下载|导出|保存)(下来|到本地)?$/,
-            /^保存(当前)?(的)?(.+)?$/n        ],
+            /^保存(当前)?(的)?(.+)?$/
+        ],
         type: 'download',
         extractTarget: (matches) => matches[2] || matches[1]
     }
