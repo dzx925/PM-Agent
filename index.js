@@ -174,6 +174,114 @@ function parseSkillSteps(skillContent, mode = 'all') {
 }
 
 /**
+ * 动态执行步骤 - 根据Skill步骤列表执行
+ * @param {Array} steps - 步骤列表
+ * @param {string} scene - 业务场景
+ * @param {string} systemPrompt - System Prompt
+ * @param {string} apiKey - API Key
+ * @param {object} res - SSE响应对象
+ * @param {string} phase - 阶段名称
+ * @param {object} context - 上下文数据（前几步的结果）
+ * @returns {object} - 执行结果
+ */
+async function executeDynamicSteps(steps, scene, systemPrompt, apiKey, res, phase, context = {}) {
+  const results = {};
+  const totalSteps = steps.length;
+  
+  // 定义每个步骤的prompt构建函数
+  const stepPromptBuilders = {
+    '需求理解': (ctx) => `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主流程是什么\n\n请用结构化方式输出。`,
+    '业务理解': (ctx) => `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主流程是什么\n\n请用结构化方式输出。`,
+    '页面规划': (ctx) => `业务场景：${scene}\n\n业务理解：\n${ctx.step1?.substring(0, 1000) || ''}\n\n请基于以上理解，确定需要哪些页面和弹窗（如列表页、详情页、表单页等）。\n\n请用结构化方式输出。`,
+    '页面拆解': (ctx) => `业务场景：${scene}\n\n业务理解：\n${ctx.step1?.substring(0, 1000) || ''}\n\n请基于以上理解，确定需要哪些页面和弹窗（如列表页、详情页、表单页等）。\n\n请用结构化方式输出。`,
+    '组件设计': (ctx) => `业务场景：${scene}\n\n页面拆解：\n${ctx.step2?.substring(0, 1000) || ''}\n\n请基于以上页面拆解，设计各页面的关键字段、控件和校验规则。\n\n请用结构化方式输出。`,
+    '原型生成': (ctx) => `业务场景：${scene}\n\n前期分析：\n${ctx.step1?.substring(0, 600) || ''}\n${ctx.step2?.substring(0, 600) || ''}\n${ctx.step3?.substring(0, 600) || ''}\n\n请基于以上所有分析，生成完整的HTML原型（单文件，内联CSS/JS，可直接运行）。\n\nHTML要求：\n- 使用 Tailwind CSS（CDN引入）\n- 包含所有页面和交互\n- 中文界面，ToB风格\n- 代码完整，无外部依赖`,
+    '交互逻辑': (ctx) => `业务场景：${scene}\n\n前期分析：\n${ctx.step1?.substring(0, 800) || ''}\n${ctx.step2?.substring(0, 800) || ''}\n${ctx.step3?.substring(0, 800) || ''}\n\n请基于以上分析，设计详细的交互逻辑：\n1. 页面间的跳转关系\n2. 按钮点击的响应\n3. 弹窗的触发和关闭\n4. 数据联动规则\n5. 状态变化处理`,
+    '生成原型': (ctx) => `业务场景：${scene}\n\n前期分析：\n${ctx.step1?.substring(0, 600) || ''}\n${ctx.step2?.substring(0, 600) || ''}\n${ctx.step3?.substring(0, 600) || ''}\n${ctx.step4?.substring(0, 600) || ''}\n\n请基于以上所有分析，生成完整的HTML原型（单文件，内联CSS/JS，可直接运行）。\n\nHTML要求：\n- 使用 Tailwind CSS（CDN引入）\n- 包含所有页面和交互\n- 中文界面，ToB风格\n- 代码完整，无外部依赖`,
+    '结构化输出': (ctx) => `业务场景：${scene}\n\nHTML原型：\n${ctx.html?.substring(0, 1000) || ''}\n\n请基于以上HTML原型，生成结构化YAML说明。`
+  };
+  
+  // 定义每个步骤的进度范围
+  const stepProgressRanges = [
+    { start: 5, end: 15 },   // 步骤1
+    { start: 18, end: 28 },  // 步骤2
+    { start: 32, end: 40 },  // 步骤3
+    { start: 45, end: 55 },  // 步骤4
+    { start: 60, end: 75 },  // 步骤5
+    { start: 80, end: 90 }   // 步骤6
+  ];
+  
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const stepTitle = step.title;
+    const stepNum = i + 1;
+    const progressRange = stepProgressRanges[i] || { start: 10, end: 90 };
+    
+    // 发送步骤开始进度
+    sendSSE(res, {
+      type: 'progress',
+      phase,
+      step: stepNum,
+      totalSteps,
+      stepData: { title: stepTitle, description: `执行${stepTitle}...` },
+      progress: progressRange.start,
+      status: 'ai-generating'
+    });
+    
+    // 构建prompt
+    const promptBuilder = stepPromptBuilders[stepTitle];
+    if (!promptBuilder) {
+      console.warn(`未找到步骤 "${stepTitle}" 的prompt构建器，使用默认prompt`);
+    }
+    const prompt = promptBuilder ? promptBuilder(context) : `${stepTitle}：${scene}`;
+    
+    // 执行步骤
+    try {
+      const result = await callSiliconFlow(systemPrompt, prompt, apiKey, (msg) => {
+        sendSSE(res, {
+          type: 'progress',
+          phase,
+          step: stepNum,
+          totalSteps,
+          stepData: { title: stepTitle, description: msg },
+          progress: Math.floor((progressRange.start + progressRange.end) / 2),
+          status: 'ai-generating'
+        });
+      });
+      
+      // 保存结果到上下文
+      results[`step${stepNum}`] = result;
+      context[`step${stepNum}`] = result;
+      
+      // 如果是原型生成步骤，同时保存为html
+      if (stepTitle === '原型生成' || stepTitle === '生成原型') {
+        const htmlMatch = result.match(/```html\n?([\s\S]*?)```/) || 
+                          result.match(/<html[\s\S]*?<\/html>/) ||
+                          [null, result];
+        context.html = htmlMatch[1] ? htmlMatch[1].trim() : result;
+      }
+      
+      // 发送步骤完成进度
+      sendSSE(res, {
+        type: 'progress',
+        phase,
+        step: stepNum,
+        totalSteps,
+        stepData: { title: stepTitle, description: '✓ 完成' },
+        progress: progressRange.end,
+        status: 'complete'
+      });
+      
+    } catch (error) {
+      console.error(`步骤 "${stepTitle}" 执行失败:`, error);
+      throw error;
+    }
+  }
+  
+  return results;
+}
+
+/**
  * 任务判断 System Prompt
  */
 const TASK_JUDGE_PROMPT = `你是智能产品生成助手，拥有两个核心能力：
@@ -684,15 +792,16 @@ app.post('/generate', async (req, res) => {
         skill: 'pm-prd-skills'
       });
       
-      // PRD生成逻辑
+      // PRD生成逻辑 - 使用finalPrdSteps中的标题
       try {
-        // 步骤1: 业务提炼
+        // 步骤1: 使用步骤列表中的第一个步骤标题
+        const step1Title = finalPrdSteps[0]?.title || '业务提炼';
         sendSSE(res, {
           type: 'progress',
           phase: 'prd',
           step: 1,
-          totalSteps: prdSteps.length || 6,
-          stepData: { title: '业务提炼', description: '从业务场景提炼需求、角色、目标' },
+          totalSteps: finalPrdSteps.length,
+          stepData: { title: step1Title, description: '从业务场景提炼需求、角色、目标' },
           progress: 10,
           status: 'ai-generating'
         });
@@ -704,20 +813,21 @@ app.post('/generate', async (req, res) => {
             type: 'progress',
             phase: 'prd',
             step: 1,
-            totalSteps: prdSteps.length || 6,
-            stepData: { title: '业务提炼', description: msg },
+            totalSteps: finalPrdSteps.length,
+            stepData: { title: step1Title, description: msg },
             progress: 20,
             status: 'ai-generating'
           });
         });
         
-        // 步骤2: PRD章节生成
+        // 步骤2: 使用步骤列表中的第二个步骤标题（如果存在）
+        const step2Title = finalPrdSteps[1]?.title || 'PRD章节生成';
         sendSSE(res, {
           type: 'progress',
           phase: 'prd',
           step: 2,
-          totalSteps: prdSteps.length || 6,
-          stepData: { title: '生成PRD章节', description: '生成业务、分析、方案等章节' },
+          totalSteps: finalPrdSteps.length,
+          stepData: { title: step2Title, description: '生成业务、分析、方案等章节' },
           progress: 40,
           status: 'ai-generating'
         });
@@ -729,8 +839,8 @@ app.post('/generate', async (req, res) => {
             type: 'progress',
             phase: 'prd',
             step: 2,
-            totalSteps: prdSteps.length || 6,
-            stepData: { title: '生成PRD章节', description: msg },
+            totalSteps: finalPrdSteps.length,
+            stepData: { title: step2Title, description: msg },
             progress: 70,
             status: 'ai-generating'
           });
@@ -772,13 +882,20 @@ app.post('/generate', async (req, res) => {
       skill: '原型-skill'
     });
     
-    // 步骤1: 业务理解
+    // 使用prototypeSteps中的标题（如果可用）
+    const step1Title = prototypeSteps[0]?.title || '需求理解';
+    const step2Title = prototypeSteps[1]?.title || '页面规划';
+    const step3Title = prototypeSteps[2]?.title || '组件设计';
+    const step4Title = prototypeSteps[3]?.title || '原型生成';
+    const totalSteps = prototypeSteps.length || 4;
+    
+    // 步骤1: 需求理解
     sendSSE(res, {
       type: 'progress',
       phase: 'prototype',
       step: 1,
-      totalSteps: 6,
-      stepData: { title: '业务理解', description: '理解业务场景、目标用户、核心价值' },
+      totalSteps,
+      stepData: { title: step1Title, description: '理解业务场景、目标用户、核心价值' },
       progress: 5,
       status: 'ai-generating'
     });
@@ -790,8 +907,8 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prototype',
         step: 1,
-        totalSteps: 6,
-        stepData: { title: '业务理解', description: msg },
+        totalSteps,
+        stepData: { title: step1Title, description: msg },
         progress: 8,
         status: 'ai-generating'
       });
@@ -802,19 +919,19 @@ app.post('/generate', async (req, res) => {
       type: 'progress',
       phase: 'prototype',
       step: 1,
-      totalSteps: 6,
-      stepData: { title: '业务理解', description: '✓ 完成' },
+      totalSteps,
+      stepData: { title: step1Title, description: '✓ 完成' },
       progress: 15,
       status: 'complete'
     });
     
-    // 步骤2: 页面拆解
+    // 步骤2: 页面规划
     sendSSE(res, {
       type: 'progress',
       phase: 'prototype',
       step: 2,
-      totalSteps: 6,
-      stepData: { title: '页面拆解', description: '确定所需页面和弹窗' },
+      totalSteps,
+      stepData: { title: step2Title, description: '确定所需页面和弹窗' },
       progress: 12,
       status: 'ai-generating'
     });
@@ -826,8 +943,8 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prototype',
         step: 2,
-        totalSteps: 6,
-        stepData: { title: '页面拆解', description: msg },
+        totalSteps,
+        stepData: { title: step2Title, description: msg },
         progress: 18,
         status: 'ai-generating'
       });
@@ -838,8 +955,8 @@ app.post('/generate', async (req, res) => {
       type: 'progress',
       phase: 'prototype',
       step: 2,
-      totalSteps: 6,
-      stepData: { title: '页面拆解', description: '✓ 完成' },
+      totalSteps,
+      stepData: { title: step2Title, description: '✓ 完成' },
       progress: 28,
       status: 'complete'
     });
@@ -849,8 +966,8 @@ app.post('/generate', async (req, res) => {
       type: 'progress',
       phase: 'prototype',
       step: 3,
-      totalSteps: 6,
-      stepData: { title: '组件设计', description: '定义关键字段、控件、校验规则' },
+      totalSteps,
+      stepData: { title: step3Title, description: '定义关键字段、控件、校验规则' },
       progress: 18,
       status: 'ai-generating'
     });
@@ -862,8 +979,8 @@ app.post('/generate', async (req, res) => {
         type: 'progress',
         phase: 'prototype',
         step: 3,
-        totalSteps: 6,
-        stepData: { title: '组件设计', description: msg },
+        totalSteps,
+        stepData: { title: step3Title, description: msg },
         progress: 32,
         status: 'ai-generating'
       });
@@ -874,19 +991,19 @@ app.post('/generate', async (req, res) => {
       type: 'progress',
       phase: 'prototype',
       step: 3,
-      totalSteps: 6,
-      stepData: { title: '组件设计', description: '✓ 完成' },
+      totalSteps,
+      stepData: { title: step3Title, description: '✓ 完成' },
       progress: 40,
       status: 'complete'
     });
     
-    // 步骤4: 交互逻辑
+    // 步骤4: 原型生成（包含交互逻辑和HTML生成）
     sendSSE(res, {
       type: 'progress',
       phase: 'prototype',
       step: 4,
-      totalSteps: 6,
-      stepData: { title: '交互逻辑', description: '明确点击、跳转、弹窗、数据联动' },
+      totalSteps,
+      stepData: { title: step4Title, description: '明确点击、跳转、弹窗、数据联动，生成HTML原型' },
       progress: 25,
       status: 'ai-generating'
     });
