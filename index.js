@@ -519,7 +519,17 @@ app.post('/generate', async (req, res) => {
   }
   
   // 输入验证
-  const validation = validateScene(scene);
+  // 对于PRD生成模式（基于已有原型），检查原型内容而非用户输入
+  let validation;
+  if (generationMode === 'prd' && intermediateResults?.html) {
+    // 基于已有原型生成PRD，验证原型内容
+    validation = validateScene(intermediateResults.html);
+    console.log('PRD模式：验证原型内容而非用户输入');
+  } else {
+    // 正常验证用户输入
+    validation = validateScene(scene);
+  }
+  
   if (!validation.valid) {
     sendSSE(res, { type: 'validation_error', message: validation.message });
     res.end();
