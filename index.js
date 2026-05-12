@@ -114,6 +114,60 @@ async function getSkillContent(type) {
 }
 
 /**
+ * 获取子Skill内容
+ * @param {string} skillName - 子Skill名称
+ * @returns {Promise<string>} - Skill内容
+ */
+async function getSubSkillContent(skillName) {
+  const cacheKey = `subskill_${skillName}`;
+  const now = Date.now();
+  
+  // 检查缓存
+  if (skillCache[cacheKey] && skillCache.lastFetch && (now - skillCache.lastFetch) < CACHE_TTL) {
+    return skillCache[cacheKey];
+  }
+  
+  // 构建子Skill URL
+  const subSkillUrl = `https://raw.githubusercontent.com/dzx925/pm-prd-skills/main/${skillName}/SKILL.md`;
+  
+  try {
+    const response = await axios.get(subSkillUrl, {
+      timeout: 10000,
+      headers: { 'User-Agent': 'PM-Agent-Backend' }
+    });
+    
+    skillCache[cacheKey] = response.data;
+    skillCache.lastFetch = now;
+    
+    console.log(`成功加载子Skill: ${skillName}`);
+    return response.data;
+  } catch (error) {
+    console.error(`获取子Skill ${skillName} 失败:`, error.message);
+    // 返回null，让调用方使用默认prompt
+    return null;
+  }
+}
+
+/**
+ * 从Skill内容中提取prompt
+ * @param {string} skillContent - Skill内容
+ * @returns {string} - 提取的prompt
+ */
+function extractPromptFromSkill(skillContent) {
+  if (!skillContent) return null;
+  
+  // 尝试提取## 工作流程或## 输入要求部分之后的内容作为prompt
+  const workflowMatch = skillContent.match(/## 工作流程[\s\S]*?(?=## |\n## |$)/);
+  if (workflowMatch) {
+    return workflowMatch[0];
+  }
+  
+  // 如果没有工作流程，返回整个内容（去掉frontmatter）
+  const contentWithoutFrontmatter = skillContent.replace(/---[\s\S]*?---/, '').trim();
+  return contentWithoutFrontmatter;
+}
+
+/**
  * 解析 Skill 工作流程步骤
  */
 function parseSkillSteps(skillContent, mode = 'all') {
@@ -445,27 +499,40 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
   const results = [];
   const totalSteps = subSkills.length;
   
-  // 定义每个子Skill的prompt构建函数
-  const skillPromptBuilders = {
-    'prototype-parser': (ctx) => `业务场景：${ctx.scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${ctx.html?.substring(0, 2000) || ''}\n...\n\`\`\`\n\n请解析上述HTML原型，提取：\n1. 页面结构\n2. 关键字段\n3. 交互逻辑\n4. 功能模块\n\n输出结构化结果。`,
+  // 预加载所有子Skill内容
+  console.log('=== 预加载子Skill内容 ===');
+  const subSkillContents = {};
+  for (const subSkill of subSkills) {
+    const content = await getSubSkillContent(subSkill.skillName);
+    if (content) {
+      subSkillContents[subSkill.skillName] = content;
+      console.log(`✓ 已加载: ${subSkill.skillName}`);
+    } else {
+      console.warn(`✗ 无法加载: ${subSkill.skillName}，将使用默认prompt`);
+    }
+  }
+  
+  // 定义默认的prompt构建函数（当无法加载子Skill时使用）
+  const defaultPromptBuilders = {
+    'prototype-parser': (ctx) => `业务场景：${ctx.scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${ctx.html?.substring(0, 2000) || ''}\n...\n\`\`\`\n\n请解析上述HTML原型，提取页面结构、字段、交互、功能模块。`,
     
-    'business-refiner': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '前期分析：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请基于以上信息，提炼业务信息：\n1. 目标用户角色\n2. 核心价值目标\n3. 用户痛点\n4. 具体业务场景\n\n输出结构化结果。`,
+    'business-refiner': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '前期分析：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请提炼业务信息：目标用户、核心价值、痛点、业务场景。`,
     
-    'prd-business-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务提炼：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的业务章节（第1-3章）：\n1. 业务背景\n2. 业务目标\n3. 需求范围\n4. 用户角色\n\n输出结构化结果。`,
+    'prd-business-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务提炼：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD业务章节（第1-3章）。`,
     
-    'prd-analysis-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的分析章节（第4章）：\n1. 竞品分析\n2. 核心功能点\n3. 差异化优势\n\n输出结构化结果。`,
+    'prd-analysis-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD分析章节（第4章）。`,
     
-    'solution-framework': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '分析章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成方案框架：\n1. 系统架构\n2. 模块划分\n3. 核心流程\n4. 数据模型\n\n输出结构化结果。`,
+    'solution-framework': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '分析章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成方案框架。`,
     
-    'feature-module-generator': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案框架：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成各功能模块的详细设计：\n1. 模块列表\n2. 每个模块的功能描述\n3. 接口定义\n4. 数据结构\n\n输出结构化结果。`,
+    'feature-module-generator': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案框架：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成功能模块详细设计。`,
     
-    'solution-merger': (ctx) => `业务场景：${ctx.scene}\n\n方案框架：\n${ctx.frameworkResult?.substring(0, 1000) || ''}\n\n功能模块详情：\n${ctx.moduleResult?.substring(0, 1000) || ctx.previousResults?.substring(0, 1000) || ''}\n\n请合并以上内容为完整的第5章（解决方案），包含：\n1. 整体架构\n2. 各模块详细设计\n3. 接口规范\n4. 数据模型\n\n输出完整方案章节。`,
+    'solution-merger': (ctx) => `业务场景：${ctx.scene}\n\n请合并方案框架和模块详情为完整第5章。`,
     
-    'prd-preparation-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案内容：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的准备章节（第6-7章）：\n1. 上线准备事项\n2. 非功能性需求\n\n输出结构化结果。`,
+    'prd-preparation-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案内容：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD准备章节（第6-7章）。`,
     
-    'prd-plan-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '准备章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的计划章节（第8-9章）：\n1. 上线计划\n2. 迭代计划\n3. 附录\n\n输出结构化结果。`,
+    'prd-plan-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '准备章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD计划章节（第8-9章）。`,
     
-    'prd-optimizer': (ctx) => `业务场景：${ctx.scene}\n\nPRD各章节内容：\n${ctx.allResults?.map((r, i) => `第${i+1}部分：\n${r.substring(0, 500)}`).join('\n\n') || ctx.previousResults?.substring(0, 2000) || ''}\n\n请基于以上内容，生成最终完整的PRD文档：\n1. 整合所有章节\n2. 统一格式和风格\n3. 检查完整性\n4. 优化表达\n\n输出最终PRD（Markdown格式）。`
+    'prd-optimizer': (ctx) => `业务场景：${ctx.scene}\n\n请整合所有章节生成最终完整PRD。`
   };
   
   // 计算进度范围（PRD阶段从50%到95%）
@@ -500,7 +567,6 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
     });
     
     // 构建prompt
-    const promptBuilder = skillPromptBuilders[skillName];
     const previousResults = results.length > 0 ? results[results.length - 1] : '';
     
     const promptContext = {
@@ -511,7 +577,21 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
       allResults: results
     };
     
-    const prompt = promptBuilder ? promptBuilder(promptContext) : `${subSkill.title}：${context.scene}`;
+    // 优先使用子Skill文件中的内容，如果没有则使用默认prompt
+    let prompt;
+    const skillContent = subSkillContents[skillName];
+    
+    if (skillContent) {
+      // 使用子Skill文件中的内容作为system prompt，添加上下文作为user prompt
+      const skillPrompt = extractPromptFromSkill(skillContent);
+      prompt = `${skillPrompt}\n\n=== 上下文输入 ===\n业务场景：${context.scene}\n\n${previousResults ? '前一步结果：\n' + previousResults.substring(0, 2000) : ''}\n\n请根据以上信息和你的角色定义，生成对应章节内容。`;
+      console.log(`使用子Skill文件内容: ${skillName}`);
+    } else {
+      // 使用默认prompt
+      const promptBuilder = defaultPromptBuilders[skillName];
+      prompt = promptBuilder ? promptBuilder(promptContext) : `${subSkill.title}：${context.scene}`;
+      console.log(`使用默认prompt: ${skillName}`);
+    }
     
     // 执行子Skill
     try {
