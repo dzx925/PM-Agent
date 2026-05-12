@@ -1068,7 +1068,7 @@ app.post('/generate', async (req, res) => {
       const task = sessionId ? getGenerationTask(sessionId) : null;
       const existingHtml = task?.results?.html || req.body.intermediateResults?.html;
       
-      // 阶段: PRD生成（直接从业务场景生成，无需原型）
+      // 阶段: PRD生成（使用动态子Skill执行）
       sendSSE(res, { 
         type: 'phase', 
         phase: 'prd', 
@@ -1076,65 +1076,71 @@ app.post('/generate', async (req, res) => {
         skill: 'pm-prd-skills'
       });
       
-      // PRD生成逻辑 - 使用finalPrdSteps中的标题
+      // 步骤0: 调用总Skill确定要使用哪些子Skill
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: 0,
+        totalSteps: 1,
+        stepData: { 
+          title: '分析需求', 
+          description: '确定PRD生成策略...'
+        },
+        progress: 5,
+        status: 'ai-generating'
+      });
+      
       try {
-        // 步骤1: 使用步骤列表中的第一个步骤标题
-        const step1Title = finalPrdSteps[0]?.title || '业务提炼';
+        // 调用总Skill确定子Skill列表
+        const selectedSkillNames = await determinePrdSubSkills(scene, existingHtml, prdSkill, apiKey);
+        
+        // 获取所有可用的子Skill信息
+        const allSubSkills = parsePrdSubSkills(prdSkill);
+        
+        // 根据总Skill返回的列表，筛选出要使用的子Skill
+        const prdSubSteps = selectedSkillNames.map(skillName => {
+          const skillInfo = allSubSkills.find(s => s.skillName === skillName);
+          return skillInfo || { 
+            skillName, 
+            title: skillName, 
+            description: '执行' + skillName,
+            icon: getSkillIcon(skillName)
+          };
+        });
+        
+        console.log('=== PRD生成使用的子Skill步骤 ===');
+        console.log('步骤数量:', prdSubSteps.length);
+        console.log('步骤列表:', prdSubSteps.map(s => `${s.icon} ${s.skillName}: ${s.title}`));
+        
+        // 发送子Skill步骤列表到前端
         sendSSE(res, {
-          type: 'progress',
-          phase: 'prd',
-          step: 1,
-          totalSteps: finalPrdSteps.length,
-          stepData: { title: step1Title, description: '从业务场景提炼需求、角色、目标' },
-          progress: 10,
-          status: 'ai-generating'
+          type: 'steps',
+          prdSubSteps: prdSubSteps.map(s => ({
+            skill: s.skillName,
+            icon: s.icon,
+            title: s.title,
+            desc: s.description
+          }))
         });
         
-        const businessPrompt = `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主要功能模块有哪些\n4. 业务流程是什么\n\n请用结构化方式输出，为后续PRD生成做准备。`;
+        // 使用动态子Skill执行PRD生成
+        const prdContext = { scene, html: existingHtml, prototypeResults: {} };
+        const prdResults = await executePrdSubSkills(
+          prdSubSteps,
+          prdSkill,
+          apiKey,
+          res,
+          prdContext
+        );
         
-        const businessResult = await callSiliconFlow(prdSkill, businessPrompt, apiKey, (msg) => {
-          sendSSE(res, {
-            type: 'progress',
-            phase: 'prd',
-            step: 1,
-            totalSteps: finalPrdSteps.length,
-            stepData: { title: step1Title, description: msg },
-            progress: 20,
-            status: 'ai-generating'
-          });
-        });
-        
-        // 步骤2: 使用步骤列表中的第二个步骤标题（如果存在）
-        const step2Title = finalPrdSteps[1]?.title || 'PRD章节生成';
-        sendSSE(res, {
-          type: 'progress',
-          phase: 'prd',
-          step: 2,
-          totalSteps: finalPrdSteps.length,
-          stepData: { title: step2Title, description: '生成业务、分析、方案等章节' },
-          progress: 40,
-          status: 'ai-generating'
-        });
-        
-        const prdPrompt = `基于以下业务分析生成完整PRD文档：\n\n${businessResult}\n\n请生成完整的PRD文档，包含：\n1. 业务背景和目标\n2. 功能需求\n3. 业务流程\n4. 数据结构\n5. 非功能性需求\n6. 上线计划\n\n注意：由于没有提供原型，原型截图部分请标注"【原型待补充】"。\n\n请使用Markdown格式输出完整PRD。`;
-        
-        const prdResult = await callSiliconFlow(prdSkill, prdPrompt, apiKey, (msg) => {
-          sendSSE(res, {
-            type: 'progress',
-            phase: 'prd',
-            step: 2,
-            totalSteps: finalPrdSteps.length,
-            stepData: { title: step2Title, description: msg },
-            progress: 70,
-            status: 'ai-generating'
-          });
-        });
+        // 提取最终PRD结果（最后一步的结果）
+        const finalPrdResult = prdResults[prdResults.length - 1] || '';
         
         // 发送PRD结果
         sendSSE(res, {
           type: 'result',
           html: existingHtml || null,
-          prd: prdResult,
+          prd: finalPrdResult,
           yaml: null
         });
         
@@ -1143,7 +1149,7 @@ app.post('/generate', async (req, res) => {
           type: 'complete',
           progress: 100,
           html: existingHtml || null,
-          prd: prdResult,
+          prd: finalPrdResult,
           scene: scene
         });
         
