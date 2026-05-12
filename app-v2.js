@@ -183,12 +183,17 @@ function updateSendButtonState() {
 
 function sendMessage() {
     const input = document.getElementById('chat-input');
-    const message = input.value.trim();
+    console.log('sendMessage: input元素=', input);
+    console.log('sendMessage: input.value=', input?.value);
+    console.log('sendMessage: input.value.trim()=', input?.value?.trim());
+    
+    const message = input?.value?.trim();
     
     console.log('sendMessage 被调用, message:', message, 'isGenerating:', state.isGenerating);
     
     if (!message) {
         console.log('消息为空，不发送');
+        addMessage('assistant', '⚠️ 请输入内容后再发送');
         return;
     }
     
