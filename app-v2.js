@@ -185,7 +185,17 @@ function sendMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
     
-    if (!message || state.isGenerating) return;
+    console.log('sendMessage 被调用, message:', message, 'isGenerating:', state.isGenerating);
+    
+    if (!message) {
+        console.log('消息为空，不发送');
+        return;
+    }
+    
+    if (state.isGenerating) {
+        console.log('正在生成中，不发送新消息');
+        return;
+    }
     
     // 添加用户消息
     addMessage('user', message);
@@ -197,6 +207,7 @@ function sendMessage() {
     
     // 解析并执行命令
     const command = parseCommand(message);
+    console.log('解析命令:', command);
     executeCommand(command, message);
 }
 
@@ -237,6 +248,7 @@ async function executeCommand(command, rawMessage) {
 }
 
 async function handleDesign(command) {
+    console.log('handleDesign 被调用:', command);
     const scene = command.target || command.raw;
     
     if (!scene || scene.length < 5) {
@@ -246,6 +258,7 @@ async function handleDesign(command) {
     
     // 识别生成模式
     const mode = detectGenerationMode(command.raw);
+    console.log('检测到的生成模式:', mode);
     state.generationMode = mode; // 记录生成模式
     const modeText = mode === 'prototype' ? '（仅生成原型）' : mode === 'prd' ? '（仅生成PRD）' : '';
     
@@ -257,6 +270,7 @@ async function handleDesign(command) {
     addMessage('assistant', `收到！我来帮你设计「${scene.substring(0, 30)}...」${stepInfo}${modeText}\n\n开始生成，请稍候...`);
     
     // 开始生成
+    console.log('调用 startGeneration, mode:', mode);
     await startGeneration(scene, false, mode);
 }
 
