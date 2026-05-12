@@ -362,26 +362,37 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
         const decoder = new TextDecoder();
         let buffer = ''; // SSE 数据缓冲区
         
+        console.log('开始读取 SSE 数据...');
+        
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+                console.log('SSE 读取完成');
+                break;
+            }
             
             const chunk = decoder.decode(value);
+            console.log('收到 SSE 数据块:', chunk.substring(0, 100));
             buffer += chunk;
             
             // 处理完整的 SSE 消息（以\n\n结尾）
             const messages = buffer.split('\n\n');
             buffer = messages.pop(); // 保留不完整的部分
             
+            console.log('处理消息数量:', messages.length);
+            
             for (const message of messages) {
+                console.log('处理消息:', message.substring(0, 100));
                 const lines = message.split('\n');
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const jsonStr = line.slice(6);
+                        console.log('解析 data:', jsonStr.substring(0, 100));
                         // 跳过 [DONE] 标记
                         if (jsonStr === '[DONE]') continue;
                         try {
                             const data = JSON.parse(jsonStr);
+                            console.log('解析成功, 数据类型:', data.type);
                             handleSSEData(data);
                         } catch (e) {
                             console.error('解析SSE失败:', e, '内容:', jsonStr.substring(0, 200));
@@ -426,6 +437,7 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
 }
 
 function handleSSEData(data) {
+    console.log('handleSSEData 收到数据:', data.type, data);
     switch (data.type) {
         case 'steps':
             // 接收后端发送的完整步骤列表
@@ -441,6 +453,7 @@ function handleSSEData(data) {
             }
             break;
         case 'progress':
+            console.log('接收到进度消息:', data.progress, data.stepData);
             // 记录步骤
             if (data.stepData?.title && !generationSteps.find(s => s.title === data.stepData.title)) {
                 generationSteps.push({
@@ -451,6 +464,7 @@ function handleSSEData(data) {
                 });
             }
             // 更新进度消息
+            console.log('调用 updateProgressMessage, messageId:', currentProgressMessageId);
             updateProgressMessage(currentProgressMessageId, {
                 progress: data.progress,
                 currentStep: data.stepData?.title,
@@ -963,6 +977,7 @@ function initProgressSteps(messageId, steps) {
 }
 
 function updateProgressMessage(messageId, data) {
+    console.log('updateProgressMessage 被调用:', messageId, data);
     // 同时更新 state.messages 中的进度消息
     const msgIndex = state.messages.findIndex(m => m.id === messageId);
     if (msgIndex !== -1) {
@@ -980,10 +995,18 @@ function updateProgressMessage(messageId, data) {
     }
     
     const messageEl = document.getElementById(messageId);
-    if (!messageEl) return;
+    if (!messageEl) {
+        console.error('updateProgressMessage: 找不到消息元素', messageId);
+        return;
+    }
     
     const progressCard = messageEl.querySelector('.progress-card');
-    if (!progressCard) return;
+    if (!progressCard) {
+        console.error('updateProgressMessage: 找不到进度卡片');
+        return;
+    }
+    
+    console.log('updateProgressMessage: 更新UI, progress=', data.progress);
     
     // 更新进度条
     const progressBar = progressCard.querySelector('.progress-bar-fill');
