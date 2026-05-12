@@ -3,25 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Agent - 对话式HR系统原型设计助手</title>
+    <title>HR Agent - 智能原型助手</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="app-layout">
-        <!-- 左侧：对话区域 -->
-        <aside class="chat-panel">
-            <div class="chat-header">
+        <!-- 左侧：历史对话列表 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
                 <div class="brand">
                     <span class="brand-icon">🎨</span>
-                    <div class="brand-text">
-                        <h2>HR Agent</h2>
-                        <span>对话式原型设计</span>
-                    </div>
+                    <h2>HR Agent</h2>
                 </div>
-                <button class="icon-btn" onclick="startNewChat()" title="新建对话">+</button>
+                <button class="new-chat-btn" id="new-chat-btn">
+                    <span>+</span> 新建对话
+                </button>
             </div>
+            
+            <!-- 搜索框 -->
+            <div class="search-box">
+                <input type="text" placeholder="搜索对话..." id="search-chats">
+            </div>
+            
+            <!-- 历史对话列表 -->
+            <div class="chat-list" id="chat-list">
+                <div class="empty-chats">暂无历史对话</div>
+            </div>
+        </aside>
 
-            <!-- 对话历史 -->
+        <!-- 中间：主对话区域 -->
+        <main class="main-chat">
+            <!-- 对话消息区 -->
             <div class="chat-messages" id="chat-messages">
                 <div class="welcome-card">
                     <div class="welcome-icon">👋</div>
@@ -46,221 +58,26 @@
 
             <!-- 输入区域 -->
             <div class="chat-input-wrapper">
-                <div class="input-actions">
-                    <button class="action-chip" onclick="showHistoryModal()">
-                        <span>📜</span> 历史对话
-                    </button>
-                    <button class="action-chip" onclick="showUploadModal()">
-                        <span>📤</span> 上传文件
-                    </button>
-                </div>
                 <div class="input-box">
                     <textarea 
                         id="chat-input" 
                         placeholder="输入HR业务场景或命令..."
                         rows="1"
-                        onkeydown="handleInputKeydown(event)"
-                        oninput="autoResize(this)"
                     ></textarea>
-                    <button class="send-btn" onclick="handleSendOrStop()" id="send-btn">
+                    <button class="send-btn" id="send-btn">
                         <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
                         </svg>
-                        <span class="stop-icon" style="display: none;">⏹</span>
                     </button>
                 </div>
-                <div class="input-hint">按 Enter 发送，Shift+Enter 换行</div>
-            </div>
-        </aside>
-
-        <!-- 右侧：预览区域 -->
-        <main class="preview-panel">
-            <!-- 预览工具栏 -->
-            <div class="preview-toolbar">
-                <div class="preview-tabs">
-                    <button class="preview-tab active" onclick="switchTab('html')" id="tab-html">
-                        <span>🎨</span> 原型预览
-                    </button>
-                    <button class="preview-tab" onclick="switchTab('prd')" id="tab-prd">
-                        <span>📝</span> PRD文档
-                    </button>
-                    <button class="preview-tab" onclick="switchTab('yaml')" id="tab-yaml">
-                        <span>📋</span> YAML结构
-                    </button>
+                <div class="input-tips">
+                    <span>Enter 发送</span>
+                    <span>Shift + Enter 换行</span>
                 </div>
-                <div class="preview-actions">
-                    <button class="tool-btn" onclick="downloadCurrent()" title="下载">
-                        💾 下载
-                    </button>
-                    <button class="tool-btn" onclick="toggleFullscreen()" title="全屏">
-                        🔍 全屏
-                    </button>
-                </div>
-            </div>
-
-            <!-- 预览内容区 -->
-            <div class="preview-content">
-                <!-- 原型预览 -->
-                <div class="preview-view active" id="view-html">
-                    <div class="empty-preview" id="html-empty">
-                        <div class="empty-icon">🎨</div>
-                        <h4>暂无原型预览</h4>
-                        <p>在左侧输入HR业务场景开始设计</p>
-                    </div>
-                    <iframe id="html-preview" sandbox="allow-scripts allow-same-origin" style="display: none;"></iframe>
-                </div>
-
-                <!-- PRD预览 -->
-                <div class="preview-view" id="view-prd">
-                    <div class="empty-preview" id="prd-empty">
-                        <div class="empty-icon">📝</div>
-                        <h4>暂无PRD文档</h4>
-                        <p>生成原型后将自动创建PRD</p>
-                    </div>
-                    <div class="prd-render" id="prd-render" style="display: none;"></div>
-                </div>
-
-                <!-- YAML预览 -->
-                <div class="preview-view" id="view-yaml">
-                    <div class="empty-preview" id="yaml-empty">
-                        <div class="empty-icon">📋</div>
-                        <h4>暂无YAML结构</h4>
-                        <p>生成原型后将输出结构化数据</p>
-                    </div>
-                    <pre class="yaml-render" id="yaml-render" style="display: none;"></pre>
-                </div>
-            </div>
-
-            <!-- 生成进度浮层 -->
-            <div class="progress-float" id="progress-float" style="display: none;">
-                <div class="progress-header">
-                    <span class="progress-title" id="progress-title">生成中...</span>
-                    <span class="progress-percent" id="progress-percent">0%</span>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-bar" id="progress-bar"></div>
-                </div>
-                <div class="progress-detail" id="progress-detail"></div>
             </div>
         </main>
     </div>
 
-    <!-- 步骤选择器弹窗 -->
-    <div class="modal" id="step-modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>⚡ 选择开始步骤</h3>
-                <button class="modal-close" onclick="closeModal('step-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <p class="modal-tip">跳过前面的步骤，直接从指定位置开始设计：</p>
-                <div class="step-list">
-                    <div class="step-item" onclick="selectStartStep('business')">
-                        <div class="step-badge">1</div>
-                        <div class="step-content">
-                            <div class="step-name">业务理解</div>
-                            <div class="step-desc">从头开始，分析业务场景</div>
-                        </div>
-                    </div>
-                    <div class="step-item" onclick="selectStartStep('pages')">
-                        <div class="step-badge">2</div>
-                        <div class="step-content">
-                            <div class="step-name">页面拆解</div>
-                            <div class="step-desc">已有业务分析，直接设计页面</div>
-                        </div>
-                    </div>
-                    <div class="step-item" onclick="selectStartStep('components')">
-                        <div class="step-badge">3</div>
-                        <div class="step-content">
-                            <div class="step-name">组件设计</div>
-                            <div class="step-desc">已有页面结构，设计组件细节</div>
-                        </div>
-                    </div>
-                    <div class="step-item" onclick="selectStartStep('interaction')">
-                        <div class="step-badge">4</div>
-                        <div class="step-content">
-                            <div class="step-name">交互逻辑</div>
-                            <div class="step-desc">已有组件，设计交互流程</div>
-                        </div>
-                    </div>
-                    <div class="step-item" onclick="selectStartStep('prototype')">
-                        <div class="step-badge">5</div>
-                        <div class="step-content">
-                            <div class="step-name">生成原型</div>
-                            <div class="step-desc">已有完整设计，直接生成HTML</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 上传文件弹窗 -->
-    <div class="modal" id="upload-modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>📤 上传文件</h3>
-                <button class="modal-close" onclick="closeModal('upload-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
-                    <div class="upload-icon">📁</div>
-                    <p>点击或拖拽文件到此处</p>
-                    <p class="upload-hint">支持 .html, .md, .yaml, .json</p>
-                    <input type="file" id="file-input" accept=".html,.md,.yaml,.json" multiple onchange="handleFileUpload(event)">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 历史对话弹窗 -->
-    <div class="modal" id="history-modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>📜 历史对话</h3>
-                <button class="modal-close" onclick="closeModal('history-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="history-list" id="history-list-modal">
-                    <!-- 动态加载历史对话 -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 提示弹窗 -->
-    <div class="modal" id="alert-modal" style="display: none;">
-        <div class="modal-content modal-small">
-            <div class="modal-header">
-                <h3 id="alert-title">提示</h3>
-                <button class="modal-close" onclick="closeModal('alert-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <p id="alert-message">提示内容</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-primary" onclick="closeModal('alert-modal')">知道了</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 确认弹窗 -->
-    <div class="modal" id="confirm-modal" style="display: none;">
-        <div class="modal-content modal-small">
-            <div class="modal-header">
-                <h3 id="confirm-title">确认</h3>
-                <button class="modal-close" onclick="closeConfirmModal(false)">×</button>
-            </div>
-            <div class="modal-body">
-                <p id="confirm-message">确认内容</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="closeConfirmModal(false)">取消</button>
-                <button class="btn-primary" onclick="closeConfirmModal(true)">确定</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="app-v2.js?v=5"></script>
+    <script src="app-v2.js"></script>
 </body>
 </html>
