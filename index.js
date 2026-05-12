@@ -1018,7 +1018,9 @@ app.post('/generate', async (req, res) => {
       ];
     }
     
-    // 根据生成模式发送不同的步骤
+    // 根据生成模式准备步骤
+    let finalPrdSteps = [];
+    
     if (actualMode === 'prototype') {
       // 只生成原型 - 只发送原型步骤
       sendSSE(res, { 
@@ -1033,7 +1035,7 @@ app.post('/generate', async (req, res) => {
       
       // prdSteps 已经根据模式解析好了
       // 如果解析为空，使用备用步骤作为兜底
-      const finalPrdSteps = prdSteps.length > 0 ? prdSteps : [
+      finalPrdSteps = prdSteps.length > 0 ? prdSteps : [
         { number: 1, title: '业务提炼', description: '从业务场景提炼需求、角色、目标' },
         { number: 2, title: 'PRD章节生成', description: '生成业务、分析、方案等章节' },
         { number: 3, title: '功能模块生成', description: '生成各功能模块详情' },
@@ -1052,6 +1054,7 @@ app.post('/generate', async (req, res) => {
       });
     } else {
       // 全部生成 - 发送所有步骤
+      finalPrdSteps = prdSteps;
       sendSSE(res, { 
         type: 'steps', 
         prototypeSteps,
