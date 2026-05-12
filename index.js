@@ -874,7 +874,7 @@ app.post('/generate', async (req, res) => {
       }
     }
     
-    // 阶段1: 原型生成（逐个步骤处理）
+    // 阶段1: 原型生成（使用动态步骤执行）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prototype', 
@@ -882,243 +882,27 @@ app.post('/generate', async (req, res) => {
       skill: '原型-skill'
     });
     
-    // 使用prototypeSteps中的标题（如果可用）
-    const step1Title = prototypeSteps[0]?.title || '需求理解';
-    const step2Title = prototypeSteps[1]?.title || '页面规划';
-    const step3Title = prototypeSteps[2]?.title || '组件设计';
-    const step4Title = prototypeSteps[3]?.title || '原型生成';
-    const totalSteps = prototypeSteps.length || 4;
+    // 使用动态步骤执行函数执行原型生成步骤
+    const prototypeContext = {};
+    const prototypeResults = await executeDynamicSteps(
+      prototypeSteps, 
+      scene, 
+      PROTOTYPE_SYSTEM_PROMPT, 
+      apiKey, 
+      res, 
+      'prototype',
+      prototypeContext
+    );
     
-    // 步骤1: 需求理解
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 1,
-      totalSteps,
-      stepData: { title: step1Title, description: '理解业务场景、目标用户、核心价值' },
-      progress: 5,
-      status: 'ai-generating'
-    });
-    
-    const step1Prompt = `业务场景：${scene}\n\n请分析上述业务场景，提炼以下内容：\n1. 目标用户是谁\n2. 核心价值是什么\n3. 主流程是什么\n\n请用结构化方式输出。`;
-    
-    const step1Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step1Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 1,
-        totalSteps,
-        stepData: { title: step1Title, description: msg },
-        progress: 8,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤1完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 1,
-      totalSteps,
-      stepData: { title: step1Title, description: '✓ 完成' },
-      progress: 15,
-      status: 'complete'
-    });
-    
-    // 步骤2: 页面规划
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 2,
-      totalSteps,
-      stepData: { title: step2Title, description: '确定所需页面和弹窗' },
-      progress: 12,
-      status: 'ai-generating'
-    });
-    
-    const step2Prompt = `业务场景：${scene}\n\n业务理解：\n${step1Result.substring(0, 1000)}\n\n请基于以上理解，确定需要哪些页面和弹窗（如列表页、详情页、表单页等）。\n\n请用结构化方式输出。`;
-    
-    const step2Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step2Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 2,
-        totalSteps,
-        stepData: { title: step2Title, description: msg },
-        progress: 18,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤2完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 2,
-      totalSteps,
-      stepData: { title: step2Title, description: '✓ 完成' },
-      progress: 28,
-      status: 'complete'
-    });
-    
-    // 步骤3: 组件设计
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 3,
-      totalSteps,
-      stepData: { title: step3Title, description: '定义关键字段、控件、校验规则' },
-      progress: 18,
-      status: 'ai-generating'
-    });
-    
-    const step3Prompt = `业务场景：${scene}\n\n页面拆解：\n${step2Result.substring(0, 1000)}\n\n请基于以上页面拆解，设计各页面的关键字段、控件和校验规则。\n\n请用结构化方式输出。`;
-    
-    const step3Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step3Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 3,
-        totalSteps,
-        stepData: { title: step3Title, description: msg },
-        progress: 32,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤3完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 3,
-      totalSteps,
-      stepData: { title: step3Title, description: '✓ 完成' },
-      progress: 40,
-      status: 'complete'
-    });
-    
-    // 步骤4: 原型生成（包含交互逻辑和HTML生成）
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 4,
-      totalSteps,
-      stepData: { title: step4Title, description: '明确点击、跳转、弹窗、数据联动，生成HTML原型' },
-      progress: 25,
-      status: 'ai-generating'
-    });
-    
-    const step4Prompt = `业务场景：${scene}\n\n前期分析：\n${step1Result.substring(0, 800)}\n${step2Result.substring(0, 800)}\n${step3Result.substring(0, 800)}\n\n请基于以上分析，设计详细的交互逻辑：\n1. 页面间的跳转关系\n2. 按钮点击的响应\n3. 弹窗的触发和关闭\n4. 数据联动规则\n5. 状态变化处理`;
-    
-    const step4Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step4Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 4,
-        totalSteps: 6,
-        stepData: { title: '交互逻辑', description: msg },
-        progress: 48,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤4完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 4,
-      totalSteps: 6,
-      stepData: { title: '交互逻辑', description: '✓ 完成' },
-      progress: 55,
-      status: 'complete'
-    });
-    
-    // 步骤5: 生成原型
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 5,
-      totalSteps: 6,
-      stepData: { title: '生成原型', description: '输出完整可运行的HTML文件' },
-      progress: 35,
-      status: 'ai-generating'
-    });
-    
-    const step5Prompt = `业务场景：${scene}\n\n前期分析：\n${step1Result.substring(0, 600)}\n${step2Result.substring(0, 600)}\n${step3Result.substring(0, 600)}\n${step4Result.substring(0, 600)}\n\n请基于以上所有分析，生成完整的HTML原型（单文件，内联CSS/JS，可直接运行）。\n\nHTML要求：\n- 使用 Tailwind CSS（CDN引入）\n- 包含所有页面和交互\n- 中文界面，ToB风格\n- 代码完整，无外部依赖`;
-    
-    const step5Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step5Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 5,
-        totalSteps: 6,
-        stepData: { title: '生成原型', description: msg },
-        progress: 65,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤5完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 5,
-      totalSteps: 6,
-      stepData: { title: '生成原型', description: '✓ 完成' },
-      progress: 75,
-      status: 'complete'
-    });
-    
-    // 步骤6: 结构化输出
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 6,
-      totalSteps: 6,
-      stepData: { title: '结构化输出', description: '生成YAML结构化说明' },
-      progress: 42,
-      status: 'ai-generating'
-    });
-    
-    const step6Prompt = `业务场景：${scene}\n\nHTML原型：\n${step5Result.substring(0, 1000)}\n\n请基于以上HTML原型，生成结构化YAML说明。`;
-    
-    const step6Result = await callSiliconFlow(PROTOTYPE_SYSTEM_PROMPT, step6Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prototype',
-        step: 6,
-        totalSteps: 6,
-        stepData: { title: '结构化输出', description: msg },
-        progress: 85,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤6完成
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prototype',
-      step: 6,
-      totalSteps: 6,
-      stepData: { title: '结构化输出', description: '✓ 完成' },
-      progress: 95,
-      status: 'complete'
-    });
-    
-    // 合并所有结果
-    const batch3Result = step5Result + '\n\n' + step6Result;
-    
-    // 提取 HTML
-    const htmlMatch = batch3Result.match(/```html\n?([\s\S]*?)```/) || 
-                      batch3Result.match(/<html[\s\S]*?<\/html>/) ||
-                      [null, batch3Result];
-    const html = htmlMatch[1] ? htmlMatch[1].trim() : batch3Result;
+    // 提取HTML和YAML结果
+    const html = prototypeContext.html || '';
+    const yamlResult = prototypeResults[`step${prototypeSteps.length}`] || '';
     
     // 发送HTML结果
     sendSSE(res, {
       type: 'result',
       html: html,
-      yaml: step6Result
+      yaml: yamlResult
     });
     
     // 如果只生成原型，跳过PRD阶段
