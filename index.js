@@ -174,6 +174,157 @@ function parseSkillSteps(skillContent, mode = 'all') {
 }
 
 /**
+ * 解析PRD总Skill中的子Skill列表（从核心流程表格中解析）
+ * @param {string} skillContent - PRD总Skill内容
+ * @returns {Array} - 子Skill列表，每个包含skillName, title, description, triggerKeyword
+ */
+function parsePrdSubSkills(skillContent) {
+  const subSkills = [];
+  
+  // 查找核心流程表格部分
+  const workflowMatch = skillContent.match(/## 核心流程[\s\S]*?(?=## |\n## |$)/);
+  if (!workflowMatch) {
+    console.warn('未找到核心流程部分，使用默认子Skill列表');
+    return getDefaultPrdSubSkills();
+  }
+  
+  const workflowSection = workflowMatch[0];
+  
+  // 解析Markdown表格
+  // 表格格式：| 阶段 | Skill名称 | 功能说明 | 触发关键词 |
+  const tableRegex = /\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g;
+  let match;
+  let isHeader = true;
+  
+  while ((match = tableRegex.exec(workflowSection)) !== null) {
+    // 跳过表头行（包含"阶段"、"Skill名称"等字样）
+    if (isHeader) {
+      isHeader = false;
+      continue;
+    }
+    
+    const stage = match[1].trim();
+    const skillName = match[2].trim().replace(/`/g, ''); // 移除代码标记
+    const description = match[3].trim();
+    const triggerKeyword = match[4].trim().replace(/"/g, ''); // 移除引号
+    
+    // 使用功能说明作为步骤标题，如果为空则使用Skill名称
+    const title = description || skillName;
+    
+    subSkills.push({
+      stage,
+      skillName,
+      title,
+      description,
+      triggerKeyword,
+      icon: getSkillIcon(skillName)
+    });
+  }
+  
+  console.log(`解析到 ${subSkills.length} 个子Skill:`, subSkills.map(s => s.skillName));
+  
+  return subSkills.length > 0 ? subSkills : getDefaultPrdSubSkills();
+}
+
+/**
+ * 获取Skill对应的图标
+ */
+function getSkillIcon(skillName) {
+  const iconMap = {
+    'prototype-parser': '📋',
+    'business-refiner': '🔍',
+    'prd-business-section': '📝',
+    'prd-analysis-section': '📊',
+    'solution-framework': '🏗️',
+    'feature-module-generator': '⚙️',
+    'solution-merger': '🔗',
+    'prd-preparation-section': '📋',
+    'prd-plan-section': '📅',
+    'prd-optimizer': '✨'
+  };
+  return iconMap[skillName] || '📄';
+}
+
+/**
+ * 获取默认PRD子Skill列表（备用）
+ */
+function getDefaultPrdSubSkills() {
+  return [
+    { skillName: 'prototype-parser', title: '原型解析', description: '提取页面结构、字段、交互、功能模块', icon: '📋' },
+    { skillName: 'business-refiner', title: '业务提炼', description: '补充角色、目标、痛点、业务场景', icon: '🔍' },
+    { skillName: 'prd-business-section', title: '业务章节', description: '编写业务背景、目标、范围', icon: '📝' },
+    { skillName: 'prd-analysis-section', title: '分析章节', description: '竞品分析、核心功能点', icon: '📊' },
+    { skillName: 'solution-framework', title: '方案框架', description: '构建系统架构、模块划分', icon: '🏗️' },
+    { skillName: 'feature-module-generator', title: '功能模块', description: '生成各模块详细设计', icon: '⚙️' },
+    { skillName: 'solution-merger', title: '方案合并', description: '合并框架和模块', icon: '🔗' },
+    { skillName: 'prd-optimizer', title: 'PRD优化', description: '质量检查、格式优化', icon: '✨' }
+  ];
+}
+
+/**
+ * 调用总Skill确定要使用哪些子Skill
+ * @param {string} scene - 业务场景
+ * @param {string} html - HTML原型内容（如果有）
+ * @param {string} prdSkillContent - PRD总Skill内容
+ * @param {string} apiKey - API Key
+ * @returns {Array} - 要使用的子Skill列表
+ */
+async function determinePrdSubSkills(scene, html, prdSkillContent, apiKey) {
+  const hasPrototype = html && html.length > 0;
+  
+  const determinePrompt = `业务场景：${scene}
+
+${hasPrototype ? `已有HTML原型（片段）：\n\`\`\`html\n${html.substring(0, 1000)}\n...\n\`\`\`\n` : '没有提供原型，需要从业务场景直接生成PRD。'}
+
+请根据以上信息，判断应该使用哪些子Skill来生成PRD。
+
+可用的子Skill列表（按执行顺序）：
+1. prototype-parser - 解析原型，提取结构化信息（仅在提供原型时使用）
+2. business-refiner - 提炼业务角色、目标、痛点
+3. prd-business-section - 生成PRD第1-3章（业务章节）
+4. prd-analysis-section - 生成PRD第4章（竞品分析）
+5. solution-framework - 生成方案框架（流程、模型）
+6. feature-module-generator - 生成功能模块详情
+7. solution-merger - 合并方案，生成第5章
+8. prd-preparation-section - 生成PRD第6-7章（准备、非功能）
+9. prd-plan-section - 生成PRD第8-9章（计划、附录）
+10. prd-optimizer - 检查优化，输出最终PRD
+
+请返回JSON格式：
+{
+  "subSkills": ["skill1", "skill2", ...],
+  "reason": "选择理由"
+}
+
+注意：
+- 如果提供了原型，第一个应该是 prototype-parser
+- 如果没有原型，跳过 prototype-parser，从 business-refiner 开始
+- 必须按顺序排列
+- 只返回需要使用的skill名称数组`;
+
+  try {
+    console.log('=== 调用总Skill确定子Skill列表 ===');
+    console.log('是否有原型:', hasPrototype);
+    
+    const result = await callSiliconFlow(prdSkillContent, determinePrompt, apiKey);
+    console.log('总Skill返回结果:', result);
+    
+    // 提取JSON
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const decision = JSON.parse(jsonMatch[0]);
+      console.log('解析后的子Skill列表:', decision.subSkills);
+      return decision.subSkills || getDefaultPrdSubSkills().map(s => s.skillName);
+    }
+  } catch (error) {
+    console.error('确定子Skill列表失败:', error);
+  }
+  
+  // 默认返回所有子Skill
+  return getDefaultPrdSubSkills().map(s => s.skillName);
+}
+
+/**
  * 动态执行步骤 - 根据Skill步骤列表执行
  * @param {Array} steps - 步骤列表
  * @param {string} scene - 业务场景
@@ -274,6 +425,136 @@ async function executeDynamicSteps(steps, scene, systemPrompt, apiKey, res, phas
       
     } catch (error) {
       console.error(`步骤 "${stepTitle}" 执行失败:`, error);
+      throw error;
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * 执行PRD子Skill步骤
+ * @param {Array} subSkills - 子Skill列表
+ * @param {string} prdSkillContent - PRD总Skill内容
+ * @param {string} apiKey - API Key
+ * @param {object} res - SSE响应对象
+ * @param {object} context - 上下文数据
+ * @returns {Array} - 每个子Skill的执行结果
+ */
+async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, context) {
+  const results = [];
+  const totalSteps = subSkills.length;
+  
+  // 定义每个子Skill的prompt构建函数
+  const skillPromptBuilders = {
+    'prototype-parser': (ctx) => `业务场景：${ctx.scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${ctx.html?.substring(0, 2000) || ''}\n...\n\`\`\`\n\n请解析上述HTML原型，提取：\n1. 页面结构\n2. 关键字段\n3. 交互逻辑\n4. 功能模块\n\n输出结构化结果。`,
+    
+    'business-refiner': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '前期分析：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请基于以上信息，提炼业务信息：\n1. 目标用户角色\n2. 核心价值目标\n3. 用户痛点\n4. 具体业务场景\n\n输出结构化结果。`,
+    
+    'prd-business-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务提炼：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的业务章节（第1-3章）：\n1. 业务背景\n2. 业务目标\n3. 需求范围\n4. 用户角色\n\n输出结构化结果。`,
+    
+    'prd-analysis-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '业务章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的分析章节（第4章）：\n1. 竞品分析\n2. 核心功能点\n3. 差异化优势\n\n输出结构化结果。`,
+    
+    'solution-framework': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '分析章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成方案框架：\n1. 系统架构\n2. 模块划分\n3. 核心流程\n4. 数据模型\n\n输出结构化结果。`,
+    
+    'feature-module-generator': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案框架：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请生成各功能模块的详细设计：\n1. 模块列表\n2. 每个模块的功能描述\n3. 接口定义\n4. 数据结构\n\n输出结构化结果。`,
+    
+    'solution-merger': (ctx) => `业务场景：${ctx.scene}\n\n方案框架：\n${ctx.frameworkResult?.substring(0, 1000) || ''}\n\n功能模块详情：\n${ctx.moduleResult?.substring(0, 1000) || ctx.previousResults?.substring(0, 1000) || ''}\n\n请合并以上内容为完整的第5章（解决方案），包含：\n1. 整体架构\n2. 各模块详细设计\n3. 接口规范\n4. 数据模型\n\n输出完整方案章节。`,
+    
+    'prd-preparation-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '方案内容：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的准备章节（第6-7章）：\n1. 上线准备事项\n2. 非功能性需求\n\n输出结构化结果。`,
+    
+    'prd-plan-section': (ctx) => `业务场景：${ctx.scene}\n\n${ctx.previousResults ? '准备章节：\n' + ctx.previousResults.substring(0, 1500) : ''}\n\n请编写PRD的计划章节（第8-9章）：\n1. 上线计划\n2. 迭代计划\n3. 附录\n\n输出结构化结果。`,
+    
+    'prd-optimizer': (ctx) => `业务场景：${ctx.scene}\n\nPRD各章节内容：\n${ctx.allResults?.map((r, i) => `第${i+1}部分：\n${r.substring(0, 500)}`).join('\n\n') || ctx.previousResults?.substring(0, 2000) || ''}\n\n请基于以上内容，生成最终完整的PRD文档：\n1. 整合所有章节\n2. 统一格式和风格\n3. 检查完整性\n4. 优化表达\n\n输出最终PRD（Markdown格式）。`
+  };
+  
+  // 计算进度范围（PRD阶段从50%到95%）
+  const startProgress = 50;
+  const endProgress = 95;
+  const progressStep = (endProgress - startProgress) / totalSteps;
+  
+  // 保存中间结果用于solution-merger
+  let frameworkResult = '';
+  let moduleResult = '';
+  
+  for (let i = 0; i < subSkills.length; i++) {
+    const subSkill = subSkills[i];
+    const skillName = subSkill.skillName;
+    const stepNum = i + 1;
+    const stepProgress = Math.floor(startProgress + progressStep * i);
+    
+    console.log(`执行PRD子Skill ${stepNum}/${totalSteps}: ${skillName}`);
+    
+    // 发送步骤开始进度
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: stepNum,
+      totalSteps,
+      stepData: { 
+        title: subSkill.title, 
+        description: subSkill.description || `执行${subSkill.title}...`
+      },
+      progress: stepProgress,
+      status: 'ai-generating'
+    });
+    
+    // 构建prompt
+    const promptBuilder = skillPromptBuilders[skillName];
+    const previousResults = results.length > 0 ? results[results.length - 1] : '';
+    
+    const promptContext = {
+      ...context,
+      previousResults,
+      frameworkResult,
+      moduleResult,
+      allResults: results
+    };
+    
+    const prompt = promptBuilder ? promptBuilder(promptContext) : `${subSkill.title}：${context.scene}`;
+    
+    // 执行子Skill
+    try {
+      const result = await callSiliconFlow(prdSkillContent, prompt, apiKey, (msg) => {
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prd',
+          step: stepNum,
+          totalSteps,
+          stepData: { 
+            title: subSkill.title, 
+            description: msg
+          },
+          progress: Math.floor(stepProgress + progressStep / 2),
+          status: 'ai-generating'
+        });
+      });
+      
+      results.push(result);
+      
+      // 保存特定结果用于solution-merger
+      if (skillName === 'solution-framework') {
+        frameworkResult = result;
+      } else if (skillName === 'feature-module-generator') {
+        moduleResult = result;
+      }
+      
+      // 发送步骤完成进度
+      sendSSE(res, {
+        type: 'progress',
+        phase: 'prd',
+        step: stepNum,
+        totalSteps,
+        stepData: { 
+          title: subSkill.title, 
+          description: '✓ 完成'
+        },
+        progress: Math.floor(stepProgress + progressStep),
+        status: 'complete'
+      });
+      
+    } catch (error) {
+      console.error(`子Skill "${skillName}" 执行失败:`, error);
       throw error;
     }
   }
@@ -919,7 +1200,7 @@ app.post('/generate', async (req, res) => {
       return;
     }
     
-    // 阶段2: PRD生成（逐个步骤处理）
+    // 阶段2: PRD生成（使用动态子Skill执行）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prd', 
@@ -927,287 +1208,84 @@ app.post('/generate', async (req, res) => {
       skill: 'pm-prd-skills'
     });
     
-    // 定义PRD子Skill步骤
-    const prdSubSteps = [
-      { skill: 'prototype-parser', icon: '📋', title: '原型解析', desc: '提取页面结构、字段、交互、功能模块' },
-      { skill: 'business-refiner', icon: '🔍', title: '业务提炼', desc: '补充角色、目标、痛点、业务场景' },
-      { skill: 'prd-business-section', icon: '📝', title: '业务章节', desc: '编写业务背景、目标、范围' },
-      { skill: 'prd-analysis-section', icon: '📊', title: '分析章节', desc: '竞品分析、核心功能点' },
-      { skill: 'solution-framework', icon: '🏗️', title: '方案框架', desc: '构建系统架构、模块划分' },
-      { skill: 'feature-module-generator', icon: '⚙️', title: '功能模块', desc: '生成各模块详细设计' },
-      { skill: 'solution-merger', icon: '🔗', title: '方案合并', desc: '合并框架和模块' },
-      { skill: 'prd-optimizer', icon: '✨', title: 'PRD优化', desc: '质量检查、格式优化' }
-    ];
+    // 步骤0: 调用总Skill确定要使用哪些子Skill
+    sendSSE(res, {
+      type: 'progress',
+      phase: 'prd',
+      step: 0,
+      totalSteps: 1,
+      stepData: { 
+        title: '分析需求', 
+        description: '确定PRD生成策略...'
+      },
+      progress: 48,
+      status: 'ai-generating'
+    });
     
-    // 发送子Skill步骤列表
+    // 调用总Skill确定子Skill列表
+    const selectedSkillNames = await determinePrdSubSkills(scene, html, prdSkill, apiKey);
+    
+    // 获取所有可用的子Skill信息
+    const allSubSkills = parsePrdSubSkills(prdSkill);
+    
+    // 根据总Skill返回的列表，筛选出要使用的子Skill
+    const prdSubSteps = selectedSkillNames.map(skillName => {
+      const skillInfo = allSubSkills.find(s => s.skillName === skillName);
+      return skillInfo || { 
+        skillName, 
+        title: skillName, 
+        description: '执行' + skillName,
+        icon: getSkillIcon(skillName)
+      };
+    });
+    
+    console.log('=== PRD生成使用的子Skill步骤 ===');
+    console.log('步骤数量:', prdSubSteps.length);
+    console.log('步骤列表:', prdSubSteps.map(s => `${s.icon} ${s.skillName}: ${s.title}`));
+    
+    // 发送子Skill步骤列表到前端
     sendSSE(res, {
       type: 'steps',
-      prdSubSteps: prdSubSteps
+      prdSubSteps: prdSubSteps.map(s => ({
+        skill: s.skillName,
+        icon: s.icon,
+        title: s.title,
+        desc: s.description
+      }))
     });
     
-    // 步骤1: 原型解析
+    // 使用动态子Skill执行PRD生成
+    const prdContext = { scene, html, prototypeResults: prototypeResults };
+    const prdResults = await executePrdSubSkills(
+      prdSubSteps,
+      prdSkill,
+      apiKey,
+      res,
+      prdContext
+    );
+    
+    // 提取最终PRD结果（最后一步的结果）
+    const finalPrdResult = prdResults[prdResults.length - 1] || '';
+    
+    // 发送PRD结果
     sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 1,
-      totalSteps: 8,
-      stepData: { 
-        title: '原型解析', 
-        description: '提取页面结构、字段、交互、功能模块'
-      },
-      progress: 50,
-      status: 'ai-generating'
+      type: 'result',
+      html: html,
+      prd: finalPrdResult,
+      yaml: yamlResult
     });
-    
-    const prdStep1Prompt = `业务场景：${scene}\n\nHTML原型（关键部分）：\n\`\`\`html\n${html.substring(0, 2000)}\n...\n\`\`\`\n\n请解析上述HTML原型，提取：\n1. 页面结构\n2. 关键字段\n3. 交互逻辑\n4. 功能模块\n\n输出结构化结果。`;
-    
-    const prdStep1Result = await callSiliconFlow(prdSkill, prdStep1Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 1,
-        totalSteps: 8,
-        stepData: { 
-          title: '原型解析', 
-          description: msg
-        },
-        progress: 52,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤2: 业务提炼
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 2,
-      totalSteps: 8,
-      stepData: { 
-        title: '业务提炼', 
-        description: '补充角色、目标、痛点、业务场景'
-      },
-      progress: 54,
-      status: 'ai-generating'
-    });
-    
-    const prdStep2Prompt = `业务场景：${scene}\n\n原型解析结果：\n${prdStep1Result.substring(0, 1500)}\n\n请基于以上解析，提炼业务信息：\n1. 目标用户角色\n2. 核心价值目标\n3. 用户痛点\n4. 具体业务场景\n\n输出结构化结果。`;
-    
-    const prdStep2Result = await callSiliconFlow(prdSkill, prdStep2Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 2,
-        totalSteps: 8,
-        stepData: { 
-          title: '业务提炼', 
-          description: msg
-        },
-        progress: 56,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤3: 业务章节
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 3,
-      totalSteps: 8,
-      stepData: { 
-        title: '业务章节', 
-        description: '编写业务背景、目标、范围'
-      },
-      progress: 58,
-      status: 'ai-generating'
-    });
-    
-    const prdStep3Prompt = `业务场景：${scene}\n\n业务提炼：\n${prdStep2Result.substring(0, 1500)}\n\n请编写PRD的业务章节：\n1. 业务背景\n2. 业务目标\n3. 需求范围\n4. 用户角色\n\n输出结构化结果。`;
-    
-    const prdStep3Result = await callSiliconFlow(prdSkill, prdStep3Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 3,
-        totalSteps: 8,
-        stepData: { 
-          title: '业务章节', 
-          description: msg
-        },
-        progress: 62,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤4: 分析章节
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 4,
-      totalSteps: 8,
-      stepData: { 
-        title: '分析章节', 
-        description: '竞品分析、核心功能点'
-      },
-      progress: 64,
-      status: 'ai-generating'
-    });
-    
-    const prdStep4Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 1500)}\n\n请编写PRD的分析章节：\n1. 竞品分析\n2. 核心功能点\n3. 差异化优势\n\n输出结构化结果。`;
-    
-    const prdStep4Result = await callSiliconFlow(prdSkill, prdStep4Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 4,
-        totalSteps: 8,
-        stepData: { 
-          title: '分析章节', 
-          description: msg
-        },
-        progress: 68,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤5: 方案框架
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 5,
-      totalSteps: 8,
-      stepData: { 
-        title: '方案框架', 
-        description: '构建系统架构、模块划分'
-      },
-      progress: 70,
-      status: 'ai-generating'
-    });
-    
-    const prdStep5Prompt = `业务场景：${scene}\n\n分析章节：\n${prdStep4Result.substring(0, 1500)}\n\n请设计方案框架：\n1. 系统架构\n2. 模块划分\n3. 技术选型\n\n输出结构化结果。`;
-    
-    const prdStep5Result = await callSiliconFlow(prdSkill, prdStep5Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 5,
-        totalSteps: 8,
-        stepData: { 
-          title: '方案框架', 
-          description: msg
-        },
-        progress: 74,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤6: 功能模块
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 6,
-      totalSteps: 8,
-      stepData: { 
-        title: '功能模块', 
-        description: '生成各模块详细设计'
-      },
-      progress: 76,
-      status: 'ai-generating'
-    });
-    
-    const prdStep6Prompt = `业务场景：${scene}\n\n方案框架：\n${prdStep5Result.substring(0, 1500)}\n\n请设计各功能模块：\n1. 模块详细设计\n2. 接口定义\n3. 数据模型\n\n输出结构化结果。`;
-    
-    const prdStep6Result = await callSiliconFlow(prdSkill, prdStep6Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 6,
-        totalSteps: 8,
-        stepData: { 
-          title: '功能模块', 
-          description: msg
-        },
-        progress: 80,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤7: 方案合并
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 7,
-      totalSteps: 8,
-      stepData: { 
-        title: '方案合并', 
-        description: '合并框架和模块'
-      },
-      progress: 82,
-      status: 'ai-generating'
-    });
-    
-    const prdStep7Prompt = `业务场景：${scene}\n\n业务章节：\n${prdStep3Result.substring(0, 800)}\n\n分析章节：\n${prdStep4Result.substring(0, 800)}\n\n方案框架：\n${prdStep5Result.substring(0, 800)}\n\n功能模块：\n${prdStep6Result.substring(0, 800)}\n\n请合并以上内容，形成完整的PRD文档结构。`;
-    
-    const prdStep7Result = await callSiliconFlow(prdSkill, prdStep7Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 7,
-        totalSteps: 8,
-        stepData: { 
-          title: '方案合并', 
-          description: msg
-        },
-        progress: 86,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 步骤8: PRD优化
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 8,
-      totalSteps: 8,
-      stepData: { 
-        title: 'PRD优化', 
-        description: '质量检查、格式优化'
-      },
-      progress: 88,
-      status: 'ai-generating'
-    });
-    
-    const prdStep8Prompt = `业务场景：${scene}\n\n合并后的PRD：\n${prdStep7Result.substring(0, 2000)}\n\n请优化PRD文档：\n1. 质量检查\n2. 格式优化\n3. 输出完整PRD（Markdown格式）`;
-    
-    const prdFinalResult = await callSiliconFlow(prdSkill, prdStep8Prompt, apiKey, (msg) => {
-      sendSSE(res, {
-        type: 'progress',
-        phase: 'prd',
-        step: 8,
-        totalSteps: 8,
-        stepData: { 
-          title: 'PRD优化', 
-          description: msg
-        },
-        progress: 92,
-        status: 'ai-generating'
-      });
-    });
-    
-    // 提取 PRD
-    const prdMatch = prdFinalResult.match(/```markdown\n?([\s\S]*?)```/) || 
-                     prdFinalResult.match(/# [\s\S]*/) ||
-                     [null, prdFinalResult];
-    const prd = prdMatch[1] ? prdMatch[1].trim() : prdFinalResult;
     
     // 完成
     sendSSE(res, {
       type: 'complete',
       progress: 100,
       html: html,
-      prd: prd
+      prd: finalPrdResult,
+      scene: scene
     });
     
     res.end();
+    return;
     
   } catch (error) {
     console.error('生成失败:', error.message);
