@@ -8,20 +8,39 @@
 </head>
 <body>
     <div class="app-layout">
-        <!-- 左侧：对话区域 -->
-        <aside class="chat-panel">
-            <div class="chat-header">
+        <!-- 左侧：历史对话列表 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
                 <div class="brand">
                     <span class="brand-icon">🎨</span>
-                    <div class="brand-text">
-                        <h2>HR Agent</h2>
-                        <span>对话式原型设计</span>
-                    </div>
+                    <h2>HR Agent</h2>
                 </div>
-                <button class="icon-btn" onclick="startNewChat()" title="新建对话">+</button>
+                <button class="new-chat-btn" onclick="startNewChat()">
+                    <span>+</span> 新建对话
+                </button>
             </div>
+            
+            <!-- 搜索框 -->
+            <div class="search-box">
+                <input type="text" placeholder="搜索对话..." id="search-chats">
+            </div>
+            
+            <!-- 历史对话列表 -->
+            <div class="chat-list" id="chat-list">
+                <!-- 动态加载历史对话 -->
+            </div>
+            
+            <!-- 底部菜单 -->
+            <div class="sidebar-footer">
+                <button class="footer-btn" onclick="showUploadModal()">
+                    <span>📤</span> 上传文件
+                </button>
+            </div>
+        </aside>
 
-            <!-- 对话历史 -->
+        <!-- 中间：主对话区域 -->
+        <main class="main-chat">
+            <!-- 对话消息区 -->
             <div class="chat-messages" id="chat-messages">
                 <div class="welcome-card">
                     <div class="welcome-icon">👋</div>
@@ -46,14 +65,6 @@
 
             <!-- 输入区域 -->
             <div class="chat-input-wrapper">
-                <div class="input-actions">
-                    <button class="action-chip" onclick="showHistoryModal()">
-                        <span>📜</span> 历史对话
-                    </button>
-                    <button class="action-chip" onclick="showUploadModal()">
-                        <span>📤</span> 上传文件
-                    </button>
-                </div>
                 <div class="input-box">
                     <textarea 
                         id="chat-input" 
@@ -71,10 +82,10 @@
                 </div>
                 <div class="input-hint">按 Enter 发送，Shift+Enter 换行</div>
             </div>
-        </aside>
+        </main>
 
-        <!-- 右侧：预览区域 -->
-        <main class="preview-panel">
+        <!-- 右侧：预览区域（现在作为全屏弹窗使用） -->
+        <main class="preview-panel" id="preview-panel" style="display: none;">
             <!-- 预览工具栏 -->
             <div class="preview-toolbar">
                 <div class="preview-tabs">
@@ -92,8 +103,8 @@
                     <button class="tool-btn" onclick="downloadCurrent()" title="下载">
                         💾 下载
                     </button>
-                    <button class="tool-btn" onclick="toggleFullscreen()" title="全屏">
-                        🔍 全屏
+                    <button class="tool-btn" onclick="closePreviewPanel()" title="关闭">
+                        ✕ 关闭
                     </button>
                 </div>
             </div>
@@ -129,18 +140,6 @@
                     </div>
                     <pre class="yaml-render" id="yaml-render" style="display: none;"></pre>
                 </div>
-            </div>
-
-            <!-- 生成进度浮层 -->
-            <div class="progress-float" id="progress-float" style="display: none;">
-                <div class="progress-header">
-                    <span class="progress-title" id="progress-title">生成中...</span>
-                    <span class="progress-percent" id="progress-percent">0%</span>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-bar" id="progress-bar"></div>
-                </div>
-                <div class="progress-detail" id="progress-detail"></div>
             </div>
         </main>
     </div>
@@ -261,6 +260,6 @@
         </div>
     </div>
 
-    <script src="app-v2.js?v=5"></script>
+    <script src="app-v2.js?v=9"></script>
 </body>
 </html>

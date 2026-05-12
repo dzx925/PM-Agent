@@ -71,12 +71,12 @@ const SKILL_STEPS = {
 const GENERATION_MODES = {
     prototype: {
         patterns: [
-            /只[画做]原型|只要原型|不需要PRD|不用PRD|只画页面/i
+            /只[画做输出生]原型|只要原型|不需要PRD|不用PRD|只画页面/i
         ]
     },
     prd: {
         patterns: [
-            /只生成PRD|只要PRD|只要文档|不需要原型|不用原型/i
+            /只[生成输]出?PRD|只要PRD|只要文档|不需要原型|不用原型/i
         ]
     }
 };
@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('HR Agent 对话式原型设计助手已加载');
     loadSavedState();
     setupDragAndDrop();
+    renderChatList();
 });
 
 // 生成会话ID
@@ -495,17 +496,15 @@ function handleComplete(data) {
     saveProject(project);
     state.currentProject = project;
     
-    // 根据生成模式显示不同的完成消息
-    let generatedItems = '';
-    if (state.generationMode === 'prototype') {
-        generatedItems = '🎨 HTML原型';
-    } else if (state.generationMode === 'prd') {
-        generatedItems = '📝 PRD文档';
-    } else {
-        generatedItems = '🎨 HTML原型\n📝 PRD文档\n📋 YAML结构';
-    }
+    // 根据实际返回的结果显示完成消息
+    let generatedItems = [];
+    if (html) generatedItems.push('🎨 HTML原型');
+    if (prd) generatedItems.push('📝 PRD文档');
+    if (yaml) generatedItems.push('📋 YAML结构');
     
-    addMessage('assistant', `✅ 生成完成！\n\n已为你生成：\n${generatedItems}\n\n你可以在右侧预览，也可以下载使用。`);
+    const itemsText = generatedItems.length > 0 ? generatedItems.join('\n') : '未生成内容';
+    
+    addMessage('assistant', `✅ 生成完成！\n\n已为你生成：\n${itemsText}\n\n点击卡片查看详情，或下载使用。`);
     
     // 重置开始步骤
     state.startFromStep = null;
@@ -591,7 +590,18 @@ function renderMessage(message) {
 
 // ========== 预览显示 ==========
 
+// 当前生成的结果数据
+let currentResult = {
+    html: null,
+    prd: null,
+    yaml: null
+};
+
 function showHTML(html) {
+    // 保存到当前结果
+    currentResult.html = html;
+    
+    // 更新预览面板
     const frame = document.getElementById('html-preview');
     const empty = document.getElementById('html-empty');
     
@@ -600,9 +610,16 @@ function showHTML(html) {
         frame.style.display = 'block';
         empty.style.display = 'none';
     }
+    
+    // 添加结果卡片消息到对话
+    addResultCardMessage('html', 'HTML原型');
 }
 
 function showPRD(prd) {
+    // 保存到当前结果
+    currentResult.prd = prd;
+    
+    // 更新预览面板
     const render = document.getElementById('prd-render');
     const empty = document.getElementById('prd-empty');
     
@@ -611,9 +628,16 @@ function showPRD(prd) {
         render.style.display = 'block';
         empty.style.display = 'none';
     }
+    
+    // 添加结果卡片消息到对话
+    addResultCardMessage('prd', 'PRD文档');
 }
 
 function showYAML(yaml) {
+    // 保存到当前结果
+    currentResult.yaml = yaml;
+    
+    // 更新预览面板
     const render = document.getElementById('yaml-render');
     const empty = document.getElementById('yaml-empty');
     
@@ -622,6 +646,68 @@ function showYAML(yaml) {
         render.style.display = 'block';
         empty.style.display = 'none';
     }
+    
+    // 添加结果卡片消息到对话（可选）
+    // addResultCardMessage('yaml', 'YAML结构');
+}
+
+// 添加结果卡片消息
+function addResultCardMessage(type, title) {
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    
+    const messageId = 'result_' + type + '_' + Date.now();
+    const timestamp = Date.now();
+    
+    // 创建消息对象
+    const resultMessage = {
+        role: 'assistant',
+        content: '',
+        timestamp: timestamp,
+        id: messageId,
+        isResult: true,
+        resultType: type,
+        resultTitle: title
+    };
+    state.messages.push(resultMessage);
+    
+    // 创建消息元素
+    const div = document.createElement('div');
+    div.className = 'message assistant result-message';
+    div.id = messageId;
+    
+    let icon = '🎨';
+    if (type === 'prd') icon = '📝';
+    if (type === 'yaml') icon = '📋';
+    
+    div.innerHTML = `
+        <div class="message-avatar">🤖</div>
+        <div class="message-body">
+            <div class="result-card" onclick="openResultPreview('${type}')">
+                <div class="result-card-header">
+                    <span class="result-icon">${icon}</span>
+                    <span class="result-title">${title}</span>
+                </div>
+                <div class="result-card-body">
+                    <span class="result-hint">点击查看详情</span>
+                </div>
+            </div>
+            <div class="message-time">${new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+    `;
+    
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    
+    saveState();
+}
+
+// 打开指定类型的结果预览
+function openResultPreview(type) {
+    // 切换到对应标签
+    switchTab(type);
+    // 打开预览面板
+    openPreviewPanel();
 }
 
 function renderMarkdown(md) {
@@ -888,6 +974,33 @@ function showHistoryModal() {
     document.getElementById('history-modal').style.display = 'flex';
 }
 
+// 渲染左侧历史对话列表
+function renderChatList() {
+    const list = document.getElementById('chat-list');
+    if (!list) return;
+    
+    const history = getChatHistory();
+    
+    if (history.length === 0) {
+        list.innerHTML = '<p style="text-align: center; color: #999; padding: 20px; font-size: 13px;">暂无历史对话</p>';
+        return;
+    }
+    
+    // 按时间倒序排列
+    const sortedHistory = history.sort((a, b) => b.updatedAt - a.updatedAt);
+    
+    list.innerHTML = sortedHistory.map(h => {
+        const isActive = state.currentSessionId === h.id;
+        const title = h.title || '新对话';
+        const time = new Date(h.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        return `
+        <div class="chat-list-item ${isActive ? 'active' : ''}" data-id="${h.id}" onclick="loadChatHistory('${h.id}')">
+            <div class="chat-list-title">${escapeHtml(title)}</div>
+            <div class="chat-list-time">${time}</div>
+        </div>
+    `}).join('');
+}
+
 function renderHistoryListModal() {
     const list = document.getElementById('history-list-modal');
     if (!list) return;
@@ -912,6 +1025,16 @@ function renderHistoryListModal() {
 
 function closeModal(id) {
     document.getElementById(id).style.display = 'none';
+}
+
+// 打开预览面板
+function openPreviewPanel() {
+    document.getElementById('preview-panel').style.display = 'flex';
+}
+
+// 关闭预览面板
+function closePreviewPanel() {
+    document.getElementById('preview-panel').style.display = 'none';
 }
 
 function selectStartStep(stepKey) {
@@ -990,6 +1113,7 @@ function saveChatToHistory() {
     if (history.length > 20) history.pop();
     
     localStorage.setItem('hr_agent_chat_history', JSON.stringify(history));
+    renderChatList();
 }
 
 function renderHistoryList() {
@@ -1069,6 +1193,7 @@ function loadChatHistory(chatId) {
         
         closeModal('load-modal');
         saveState();
+        renderChatList();
         
         addMessage('assistant', `已加载历史对话「${chat.title}」。你可以继续对话。`);
     }
@@ -1219,6 +1344,7 @@ function startNewChat() {
             document.getElementById('yaml-empty').style.display = 'flex';
             
             saveState();
+            renderChatList();
         }
     });
 }

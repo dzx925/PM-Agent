@@ -11,9 +11,14 @@ class SiliconFlowModelRouter {
       { id: 'Qwen/Qwen3-8B', name: 'Qwen3-8B' }
     ];
     
-    // 使用 OPENAI_API_KEY 环境变量（与主服务保持一致）
-    this.apiKey = process.env.OPENAI_API_KEY;
     this.baseUrl = 'https://api.siliconflow.cn/v1';
+  }
+  
+  /**
+   * 获取 API Key（延迟获取，确保环境变量已设置）
+   */
+  getApiKey() {
+    return process.env.OPENAI_API_KEY;
   }
 
   /**
@@ -75,7 +80,7 @@ class SiliconFlowModelRouter {
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Bearer ${this.getApiKey()}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -97,29 +102,40 @@ class SiliconFlowModelRouter {
    * 调用模型（完整调用）
    */
   async callModel(messages, options = {}) {
-    const model = await this.getAvailableModel();
+    console.log('[ModelRouter] callModel 开始调用');
+    console.log('[ModelRouter] API Key:', this.getApiKey() ? '已设置' : '未设置');
     
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        max_tokens: 2000,
-        temperature: 0.7,
-        ...options
-      })
-    });
+    const model = await this.getAvailableModel();
+    console.log('[ModelRouter] 使用模型:', model);
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getApiKey()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          max_tokens: 2000,
+          temperature: 0.7,
+          ...options
+        })
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`模型调用失败: ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ModelRouter] 模型调用失败:', response.status, errorText);
+        throw new Error(`模型调用失败: ${errorText}`);
+      }
+
+      console.log('[ModelRouter] 模型调用成功');
+      return response.json();
+    } catch (error) {
+      console.error('[ModelRouter] callModel 异常:', error.message);
+      throw error;
     }
-
-    return response.json();
   }
 }
 
