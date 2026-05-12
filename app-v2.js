@@ -320,8 +320,8 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
     // 更新按钮状态为停止按钮
     updateSendButtonState();
     
-    // 创建进度消息卡片（初始为空步骤列表）
-    currentProgressMessageId = addProgressMessage();
+    // 创建进度消息卡片（根据模式显示不同提示）
+    currentProgressMessageId = addProgressMessage(mode);
     
     try {
         const response = await fetch(`${API_BASE_URL}/generate`, {
@@ -845,7 +845,7 @@ function renderMarkdown(md) {
 
 // ========== 进度消息（嵌入对话） ==========
 
-function addProgressMessage() {
+function addProgressMessage(mode = 'all') {
     const container = document.getElementById('chat-messages');
     if (!container) return null;
     
@@ -856,10 +856,21 @@ function addProgressMessage() {
     const messageId = 'progress_' + Date.now();
     const timestamp = Date.now();
     
+    // 根据模式确定提示文本
+    let statusText = '🚀 正在生成...';
+    let contentText = '🚀 正在生成...';
+    if (mode === 'prototype') {
+        statusText = '🎨 正在生成原型...';
+        contentText = '🎨 正在生成原型...';
+    } else if (mode === 'prd') {
+        statusText = '📝 正在生成PRD...';
+        contentText = '📝 正在生成PRD...';
+    }
+    
     // 创建进度消息对象并添加到 state.messages
     const progressMessage = {
         role: 'assistant',
-        content: '🚀 正在生成原型...',
+        content: contentText,
         timestamp: timestamp,
         id: messageId,
         isProgress: true,  // 标记为进度消息
@@ -877,7 +888,7 @@ function addProgressMessage() {
         <div class="message-body">
             <div class="progress-card">
                 <div class="progress-header">
-                    <span class="progress-status">🚀 正在生成原型...</span>
+                    <span class="progress-status">${statusText}</span>
                     <span class="progress-percent">0%</span>
                 </div>
                 <div class="progress-bar-container">
