@@ -196,10 +196,10 @@ function init() {
     if (savedState) {
         const parsed = JSON.parse(savedState);
         if (parsed.messages && parsed.messages.length > 0) {
-            // 过滤空消息
-            state.messages = parsed.messages.filter(msg => 
-                msg.content && msg.content.trim() !== ''
-            );
+            // 过滤空消息并按时间戳排序
+            state.messages = parsed.messages
+                .filter(msg => msg.content && msg.content.trim() !== '')
+                .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             renderMessages();
         }
         if (parsed.currentProject) {
@@ -513,8 +513,14 @@ function handleStreamData(data) {
         case 'error':
             handleError(data);
             break;
+        case 'validation_error':
+            handleValidationError(data);
+            break;
         case 'message':
             addMessage('assistant', data.message);
+            break;
+        default:
+            console.warn('未知的数据类型:', data.type);
             break;
     }
 }
@@ -616,6 +622,11 @@ function handleComplete(data) {
 // 处理错误
 function handleError(data) {
     addMessage('assistant', `❌ 生成失败：${data.message}\n\n请检查你的输入或稍后重试。`);
+}
+
+// 处理验证错误
+function handleValidationError(data) {
+    addMessage('assistant', `⚠️ 输入验证失败：${data.message}\n\n请修改你的输入后重新提交。`);
 }
 
 // 显示原型
@@ -731,8 +742,11 @@ function renderMessages() {
     // 清空现有消息
     chatHistory.innerHTML = '';
     
+    // 按时间戳排序消息，确保顺序正确
+    const sortedMessages = [...state.messages].sort((a, b) => a.timestamp - b.timestamp);
+    
     // 渲染所有消息
-    state.messages.forEach(msg => renderMessage(msg));
+    sortedMessages.forEach(msg => renderMessage(msg));
 }
 
 // HTML转义
