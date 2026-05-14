@@ -1668,13 +1668,21 @@ function loadSavedState() {
     const saved = localStorage.getItem('hr_agent_state');
     if (saved) {
         const data = JSON.parse(saved);
-        if (data.messages) state.messages = data.messages;
+        if (data.messages) {
+            // 确保所有消息都有有效的时间戳，并按时间排序
+            state.messages = data.messages
+                .map(msg => ({
+                    ...msg,
+                    timestamp: msg.timestamp || Date.now()
+                }))
+                .sort((a, b) => a.timestamp - b.timestamp);
+        }
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
         
         // 恢复显示 - 只加载最近的消息
         if (state.messages.length > 0) {
-            // 只加载最近的消息
+            // 只加载最近的消息（已经按时间排序，直接取最后 MESSAGE_PAGE_SIZE 条）
             const recentMessages = state.messages.slice(-MESSAGE_PAGE_SIZE);
             loadedMessageCount = recentMessages.length;
             
