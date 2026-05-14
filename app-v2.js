@@ -997,9 +997,9 @@ function initProgressSteps(messageId, steps) {
         const isFirst = index === 0;
         return `
             <div class="progress-step-item ${isFirst ? 'current' : ''}" data-step-title="${step.title}">
-                <span class="step-num ${isFirst ? 'active' : ''}">${isFirst ? '●' : index + 1}</span>
+                <span class="step-num ${isFirst ? 'spinner' : ''}">${isFirst ? '' : index + 1}</span>
                 <span class="step-title">${step.title}</span>
-                <span class="step-status">${isFirst ? '进行中...' : ''}</span>
+                <span class="step-status ${isFirst ? 'pulsing' : ''}">${isFirst ? '进行中...' : ''}</span>
             </div>
         `;
     }).join('');
@@ -1110,9 +1110,10 @@ function updateProgressMessage(messageId, data) {
         const isCompleted = isComplete || index < currentStepIndex;
         const isCurrent = !isComplete && index === currentStepIndex;
         
-        // 更新样式
+        // 更新样式 - 清除所有状态类
         item.classList.remove('completed', 'current');
-        if (stepNum) stepNum.classList.remove('done', 'active', 'completed');
+        if (stepNum) stepNum.classList.remove('done', 'active', 'completed', 'spinner');
+        if (stepStatus) stepStatus.classList.remove('pulsing');
         
         if (isCompleted) {
             // 已完成 - 显示绿色勾选
@@ -1123,13 +1124,16 @@ function updateProgressMessage(messageId, data) {
             }
             if (stepStatus) stepStatus.textContent = '';
         } else if (isCurrent) {
-            // 进行中 - 显示蓝色圆点
+            // 进行中 - 显示转圈圈动画
             item.classList.add('current');
             if (stepNum) {
-                stepNum.textContent = '●';
-                stepNum.classList.add('active');
+                stepNum.textContent = '';
+                stepNum.classList.add('spinner');
             }
-            if (stepStatus) stepStatus.textContent = '进行中...';
+            if (stepStatus) {
+                stepStatus.textContent = '进行中...';
+                stepStatus.classList.add('pulsing');
+            }
         } else {
             // 未开始 - 显示数字
             if (stepNum) {
