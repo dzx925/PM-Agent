@@ -1702,9 +1702,10 @@ function loadSavedState() {
             }, 100);
         }
         if (state.currentProject) {
-            if (state.currentProject.html) showHTML(state.currentProject.html);
-            if (state.currentProject.yaml) showYAML(state.currentProject.yaml);
-            if (state.currentProject.prd) showPRD(state.currentProject.prd);
+            // 仅更新预览面板，不添加结果卡片到对话（避免重复消息和错误时间戳）
+            if (state.currentProject.html) updateHTMLPreview(state.currentProject.html);
+            if (state.currentProject.yaml) updateYAMLPreview(state.currentProject.yaml);
+            if (state.currentProject.prd) updatePRDPreview(state.currentProject.prd);
         }
     }
 }
