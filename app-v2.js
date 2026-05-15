@@ -655,6 +655,28 @@ function renderMessage(message) {
                 <div class="message-time">${time}</div>
             </div>
         `;
+    } else if (message.isResult) {
+        // 结果卡片消息
+        div.classList.add('result-message');
+        let icon = '🎨';
+        if (message.resultType === 'prd') icon = '📝';
+        if (message.resultType === 'yaml') icon = '📋';
+        
+        div.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-body">
+                <div class="result-card" onclick="openResultPreview('${message.resultType}')">
+                    <div class="result-card-header">
+                        <span class="result-icon">${icon}</span>
+                        <span class="result-title">${message.resultTitle || '查看详情'}</span>
+                    </div>
+                    <div class="result-card-body">
+                        <span class="result-hint">点击查看详情</span>
+                    </div>
+                </div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
     } else {
         // 普通消息
         div.innerHTML = `
