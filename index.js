@@ -311,6 +311,8 @@ function getDefaultPrdSubSkills() {
     { skillName: 'solution-framework', title: '方案框架', description: '构建系统架构、模块划分', icon: '🏗️' },
     { skillName: 'feature-module-generator', title: '功能模块', description: '生成各模块详细设计', icon: '⚙️' },
     { skillName: 'solution-merger', title: '方案合并', description: '合并框架和模块', icon: '🔗' },
+    { skillName: 'prd-preparation-section', title: '准备章节', description: '生成PRD第6-7章（准备、非功能）', icon: '📋' },
+    { skillName: 'prd-plan-section', title: '计划章节', description: '生成PRD第8-9章（计划、附录）', icon: '📅' },
     { skillName: 'prd-optimizer', title: 'PRD优化', description: '质量检查、格式优化', icon: '✨' }
   ];
 }
