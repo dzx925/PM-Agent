@@ -1669,13 +1669,9 @@ function loadSavedState() {
     if (saved) {
         const data = JSON.parse(saved);
         if (data.messages) {
-            // 确保所有消息都有有效的时间戳，并按时间排序
+            // 按时间排序，不覆盖原始时间戳
             state.messages = data.messages
-                .map(msg => ({
-                    ...msg,
-                    timestamp: msg.timestamp || Date.now()
-                }))
-                .sort((a, b) => a.timestamp - b.timestamp);
+                .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         }
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
