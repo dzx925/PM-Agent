@@ -326,9 +326,17 @@ let allStepsFromBackend = [];
 // 页面是否正在刷新/关闭
 let isPageRefreshing = false;
 
+// AbortController 用于中断 fetch 请求
+let abortController = null;
+
 // 监听页面刷新/关闭事件
 window.addEventListener('beforeunload', () => {
     isPageRefreshing = true;
+    // 中断正在进行的 fetch 请求
+    if (abortController) {
+        abortController.abort();
+        console.log('页面刷新，已中断请求');
+    }
 });
 
 async function startGeneration(scene, isModify = false, mode = 'all') {
@@ -352,6 +360,9 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
             isModify
         }));
         
+        // 创建新的 AbortController
+        abortController = new AbortController();
+        
         let response;
         try {
             response = await fetch(`${API_BASE_URL}/generate`, {
@@ -364,11 +375,19 @@ async function startGeneration(scene, isModify = false, mode = 'all') {
                     intermediateResults: state.intermediateResults,
                     isModify,
                     mode
-                })
+                }),
+                signal: abortController.signal
             });
         } catch (fetchError) {
+            // 如果是主动中断的请求，不显示错误
+            if (fetchError.name === 'AbortError') {
+                console.log('请求被中断');
+                return;
+            }
             console.error('Fetch 错误:', fetchError);
             throw new Error(`网络请求失败: ${fetchError.message}`);
+        } finally {
+            abortController = null;
         }
         
         console.log('收到响应:', response.status);
@@ -1675,6 +1694,19 @@ function loadSavedState() {
         }
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
+        
+        // 如果之前有生成中的任务，标记为已中断
+        if (data.isGenerating) {
+            state.isGenerating = false;
+            // 更新进度消息为中断状态
+            const progressMsg = state.messages.find(m => m.isProgress && m.progress < 100);
+            if (progressMsg) {
+                progressMsg.progress = 100;
+                progressMsg.status = 'interrupted';
+            }
+            addMessage('assistant', '❌ 生成已中断（页面刷新）');
+            saveState();
+        }
         
         // 恢复显示 - 只加载最近的消息
         if (state.messages.length > 0) {
