@@ -628,7 +628,9 @@ function renderMessage(message) {
         div.classList.add('progress-message');
         // 根据进度状态显示不同文本
         let statusText = message.content || '🚀 正在生成...';
-        if (message.progress >= 100) {
+        if (message.status === 'interrupted') {
+            statusText = '❌ 已终止';
+        } else if (message.progress >= 100) {
             statusText = '✅ 生成完成';
         }
         div.innerHTML = `
@@ -1693,9 +1695,10 @@ function saveState() {
     localStorage.setItem('hr_agent_state', JSON.stringify({
         messages: state.messages.slice(-50),
         currentProject: state.currentProject,
-        sessionId: state.sessionId
+        sessionId: state.sessionId,
+        isGenerating: state.isGenerating
     }));
-    
+
     // 同时保存到历史对话
     saveChatToHistory();
 }
