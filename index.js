@@ -1381,6 +1381,49 @@ app.post('/generate', async (req, res) => {
     
     // 执行编排器
     const finalPrdResult = await callSiliconFlow(prdSkill, prompt, apiKey, (msg) => {
+      // 解析SKILL输出的状态标记
+      if (msg.includes('[COMPLETE]')) {
+        // 生成完成标记
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prd',
+          progress: 95,
+          status: 'ai-generating',
+          stepData: {
+            title: 'PRD文档生成',
+            description: '生成完成，正在整理结果...'
+          }
+        });
+        return;
+      }
+      
+      // 解析错误标记
+      const errorMatch = msg.match(/\[ERROR\]\s*(.+)/);
+      if (errorMatch) {
+        sendSSE(res, { type: 'error', message: errorMatch[1] });
+        return;
+      }
+      
+      // 解析步骤标记 [STEP:N]
+      const stepMatch = msg.match(/\[STEP:(\d+)\]\s*(.+)/);
+      if (stepMatch) {
+        const stepIndex = parseInt(stepMatch[1]);
+        const stepDesc = stepMatch[2];
+        const progress = 50 + (stepIndex * 10); // 50% - 90%
+        sendSSE(res, {
+          type: 'progress',
+          phase: 'prd',
+          progress: progress,
+          status: 'ai-generating',
+          stepData: {
+            title: `步骤 ${stepIndex + 1}`,
+            description: stepDesc
+          }
+        });
+        return;
+      }
+      
+      // 默认进度消息
       sendSSE(res, {
         type: 'progress',
         phase: 'prd',
@@ -1393,11 +1436,18 @@ app.post('/generate', async (req, res) => {
       });
     });
     
+    // 解析最终结果中的 [PRD] 标记，提取HTML内容
+    let prdHtml = finalPrdResult;
+    const prdMatch = finalPrdResult.match(/\[PRD\]\s*([\s\S]*)/);
+    if (prdMatch) {
+      prdHtml = prdMatch[1].trim();
+    }
+    
     // 发送PRD结果
     sendSSE(res, {
       type: 'result',
       html: html,
-      prd: finalPrdResult,
+      prd: prdHtml,
       yaml: yamlResult
     });
     
@@ -1406,7 +1456,7 @@ app.post('/generate', async (req, res) => {
       type: 'complete',
       progress: 100,
       html: html,
-      prd: finalPrdResult,
+      prd: prdHtml,
       scene: scene
     });
     
