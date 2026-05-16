@@ -510,6 +510,9 @@ function handleStreamData(data) {
         case 'error':
             handleError(data);
             break;
+        case 'validation_error':
+            handleValidationError(data);
+            break;
         case 'message':
             addMessage('assistant', data.message);
             break;
@@ -613,6 +616,11 @@ function handleComplete(data) {
 // 处理错误
 function handleError(data) {
     addMessage('assistant', `❌ 生成失败：${data.message}\n\n请检查你的输入或稍后重试。`);
+}
+
+// 处理验证错误
+function handleValidationError(data) {
+    addMessage('assistant', `⚠️ 输入验证失败：${data.message}\n\n请修改你的输入后重新提交。`);
 }
 
 // 显示原型
