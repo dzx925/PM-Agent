@@ -507,6 +507,11 @@ function handleSSEData(data) {
                     ...(data.prdSubSteps || [])
                 ];
                 console.log('初始化步骤列表:', allStepsFromBackend);
+                // 保存步骤到消息对象，以便刷新后恢复
+                const progressMsg = state.messages.find(m => m.id === currentProgressMessageId);
+                if (progressMsg) {
+                    progressMsg.allSteps = allStepsFromBackend;
+                }
                 // 初始化显示所有步骤（未开始状态）
                 initProgressSteps(currentProgressMessageId, allStepsFromBackend);
             }
@@ -672,10 +677,10 @@ function renderMessage(message) {
                     </div>
                     <div class="progress-current-step">${message.currentStep || '准备开始...'}</div>
                     <div class="progress-steps-list">
-                        ${(message.steps || []).map((step, index) => `
-                            <div class="progress-step-item ${step.completed ? 'completed' : ''}">
+                        ${(message.allSteps || message.steps || []).map((step, index) => `
+                            <div class="progress-step-item ${step.completed ? 'completed' : ''}" data-step-title="${step.title || step}">
                                 <span class="step-num ${step.completed ? 'completed' : ''}">${step.completed ? '✓' : index + 1}</span>
-                                <span class="step-title">${step.title}</span>
+                                <span class="step-title">${step.title || step}</span>
                             </div>
                         `).join('')}
                     </div>
