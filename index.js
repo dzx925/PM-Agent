@@ -1172,6 +1172,17 @@ app.post('/generate', async (req, res) => {
         console.log('步骤数量:', prdSubSteps.length);
         console.log('步骤列表:', prdSubSteps.map(s => `${s.icon} ${s.skillName}: ${s.title}`));
         
+        // 发送子Skill步骤列表到前端（展示用，不实际执行）
+        sendSSE(res, {
+          type: 'steps',
+          prdSubSteps: prdSubSteps.map(s => ({
+            skill: s.skillName,
+            icon: s.icon,
+            title: s.title,
+            desc: s.description
+          }))
+        });
+        
         // 发送PRD生成开始信号
         sendSSE(res, {
           type: 'progress',
@@ -1324,6 +1335,17 @@ app.post('/generate', async (req, res) => {
     console.log('=== PRD生成使用的子Skill步骤 ===');
     console.log('步骤数量:', prdSubSteps.length);
     console.log('步骤列表:', prdSubSteps.map(s => `${s.icon} ${s.skillName}: ${s.title}`));
+    
+    // 发送子Skill步骤列表到前端（展示用，不实际执行）
+    sendSSE(res, {
+      type: 'steps',
+      prdSubSteps: prdSubSteps.map(s => ({
+        skill: s.skillName,
+        icon: s.icon,
+        title: s.title,
+        desc: s.description
+      }))
+    });
     
     // 发送PRD生成开始信号
     sendSSE(res, {
