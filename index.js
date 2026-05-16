@@ -1183,42 +1183,51 @@ app.post('/generate', async (req, res) => {
           }))
         });
         
-        // 发送PRD生成开始信号
-        sendSSE(res, {
-          type: 'progress',
-          phase: 'prd',
-          progress: 0,
-          status: 'ai-generating',
-          stepData: {
-            title: 'PRD文档生成',
-            description: '正在调用编排器生成完整PRD文档...'
-          }
-        });
-        
         // 调用prototype-to-prd-orchestrator，由它负责完整调度
         const prdSkillContent = await getSubSkillContent('prototype-to-prd-orchestrator');
         
         let prompt;
         if (prdSkillContent) {
           const skillPrompt = extractPromptFromSkill(prdSkillContent);
-          prompt = `${skillPrompt}\n\n=== 输入信息 ===\n业务场景：${scene}\n\n${existingHtml ? 'HTML原型（关键部分）：\n```html\n' + existingHtml.substring(0, 2000) + '\n```\n\n' : ''}请根据以上信息，生成完整的PRD文档（HTML格式）。`;
+          prompt = `${skillPrompt}\n\n=== 输入信息 ===\n业务场景：${scene}\n\n${existingHtml ? 'HTML原型（关键部分）：\n```html\n' + existingHtml.substring(0, 2000) + '\n```\n\n' : ''}请根据以上信息，生成完整的PRD文档（HTML格式）。输出格式要求：在HTML内容前添加步骤状态标记，格式为 [STEP:N] 步骤描述，最后用 [PRD] 标记分隔PRD内容。`;
         } else {
-          prompt = `业务场景：${scene}\n\n${existingHtml ? 'HTML原型：\n```html\n' + existingHtml.substring(0, 2000) + '\n```\n' : ''}请生成完整的PRD文档，包含所有章节，输出HTML格式。`;
+          prompt = `业务场景：${scene}\n\n${existingHtml ? 'HTML原型：\n```html\n' + existingHtml.substring(0, 2000) + '\n```\n' : ''}请生成完整的PRD文档，包含所有章节，输出HTML格式。输出格式要求：在HTML内容前添加步骤状态标记，格式为 [STEP:N] 步骤描述，最后用 [PRD] 标记分隔PRD内容。`;
         }
         
         // 执行编排器
-        const finalPrdResult = await callSiliconFlow(prdSkill, prompt, apiKey, (msg) => {
-          sendSSE(res, {
-            type: 'progress',
-            phase: 'prd',
-            progress: 50,
-            status: 'ai-generating',
-            stepData: {
-              title: 'PRD文档生成',
-              description: msg
-            }
-          });
+        let allResults = '';
+        const finalResult = await callSiliconFlow(prdSkill, prompt, apiKey, (msg) => {
+          allResults += msg;
+          
+          // 解析SKILL返回的步骤状态标记 [STEP:N]
+          const stepMatch = msg.match(/\[STEP:(\d+)\]\s*(.+)/);
+          if (stepMatch) {
+            const stepIndex = parseInt(stepMatch[1]);
+            const stepDesc = stepMatch[2];
+            const step = prdSubSteps[stepIndex];
+            
+            sendSSE(res, {
+              type: 'progress',
+              phase: 'prd',
+              progress: Math.round(((stepIndex + 0.5) / prdSubSteps.length) * 100),
+              status: 'ai-generating',
+              stepData: {
+                title: step ? step.title : `步骤${stepIndex}`,
+                description: stepDesc,
+                skill: step ? step.skillName : '',
+                stepIndex: stepIndex,
+                totalSteps: prdSubSteps.length
+              }
+            });
+          }
         });
+        
+        // 合并所有结果
+        allResults += finalResult;
+        
+        // 解析最终结果，提取HTML内容（[PRD]标记之后的内容）
+        const prdMatch = allResults.match(/\[PRD\]\s*([\s\S]*)/);
+        const finalPrdResult = prdMatch ? prdMatch[1].trim() : allResults.trim();
         
         // 发送PRD结果
         sendSSE(res, {
