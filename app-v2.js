@@ -163,10 +163,14 @@ function updateSendButtonState() {
     const sendBtn = document.getElementById('send-btn');
     const sendIcon = sendBtn?.querySelector('.send-icon');
     const stopIcon = sendBtn?.querySelector('.stop-icon');
-    
+
     if (!sendBtn) return;
-    
-    if (state.isGenerating) {
+
+    // 检查是否有进行中的进度消息
+    const progressMsg = state.messages.find(m => m.isProgress && m.status === 'running');
+    const isGenerating = !!progressMsg;
+
+    if (isGenerating) {
         // 生成中 - 显示停止按钮
         sendBtn.classList.add('stop-mode');
         if (sendIcon) sendIcon.style.display = 'none';
@@ -643,10 +647,12 @@ function renderMessage(message) {
     if (message.isProgress) {
         div.classList.add('progress-message');
         // 根据进度状态显示不同文本
-        let statusText = message.content || '🚀 正在生成...';
+        let statusText = '🚀 正在生成...';
         if (message.status === 'interrupted') {
             statusText = '❌ 已终止';
-        } else if (message.progress >= 100) {
+        } else if (message.status === 'error') {
+            statusText = '❌ 生成失败';
+        } else if (message.status === 'complete' || message.progress >= 100) {
             statusText = '✅ 生成完成';
         }
         div.innerHTML = `
@@ -1010,6 +1016,7 @@ function addProgressMessage(mode = 'all') {
         timestamp: timestamp,
         id: messageId,
         isProgress: true,  // 标记为进度消息
+        status: 'running',  // 初始状态为进行中
         progress: 0,
         steps: []
     };
@@ -1128,9 +1135,9 @@ function updateProgressMessage(messageId, data) {
     } else if (data.status === 'error' && statusEl) {
         statusEl.textContent = '❌ 生成失败';
         progressCard.classList.add('error');
-    } else if (data.status === 'stopped' && statusEl) {
-        statusEl.textContent = '⏹ 已停止';
-        progressCard.classList.add('stopped');
+    } else if (data.status === 'interrupted' && statusEl) {
+        statusEl.textContent = '❌ 已终止';
+        progressCard.classList.add('interrupted');
     }
     
     // 更新步骤列表 - 根据当前进度更新每个步骤的状态
@@ -1209,20 +1216,21 @@ function updateProgressMessage(messageId, data) {
 
 // 停止生成
 async function stopGeneration(messageId) {
-    if (!state.isGenerating) return;
-    
+    // 检查是否有进行中的进度消息
+    const progressMsg = state.messages.find(m => m.isProgress && m.status === 'running');
+    if (!progressMsg) return;
+
     try {
         const response = await fetch(`${API_BASE_URL}/pause`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId: state.sessionId })
         });
-        
+
         if (response.ok) {
-            state.isGenerating = false;
             updateProgressMessage(messageId, {
-                status: 'stopped',
-                progress: 0
+                status: 'interrupted',
+                progress: 100
             });
             // 更新按钮状态为发送
             updateSendButtonState();
@@ -1736,23 +1744,23 @@ function loadSavedState() {
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
 
-        // 如果之前有生成中的任务，标记为已中断
-        if (data.isGenerating) {
-            state.isGenerating = false;
-            // 更新进度消息为中断状态
-            const progressMsg = state.messages.find(m => m.isProgress && m.progress < 100);
-            if (progressMsg) {
-                progressMsg.progress = 100;
-                progressMsg.status = 'interrupted';
+        // 终态列表：成功、失败、终止
+        const FINAL_STATES = ['complete', 'error', 'interrupted'];
+
+        // 检查所有进度消息，非终态转为终止
+        state.messages.forEach(msg => {
+            if (msg.isProgress && !FINAL_STATES.includes(msg.status)) {
+                msg.status = 'interrupted';
+                msg.progress = 100;
             }
-        }
+        });
 
         // 恢复显示 - 只加载最近的消息
         if (state.messages.length > 0) {
             // 只加载最近的消息（已经按时间排序，直接取最后 MESSAGE_PAGE_SIZE 条）
             const recentMessages = state.messages.slice(-MESSAGE_PAGE_SIZE);
             loadedMessageCount = recentMessages.length;
-            
+
             // 添加"加载更多"提示（如果有更多消息）
             if (state.messages.length > MESSAGE_PAGE_SIZE) {
                 const loadMoreHint = document.createElement('div');
@@ -1760,25 +1768,9 @@ function loadSavedState() {
                 loadMoreHint.innerHTML = `<div class="load-more-text">↑ 向上滑动加载更多消息 (${state.messages.length - MESSAGE_PAGE_SIZE} 条)</div>`;
                 document.getElementById('chat-messages').appendChild(loadMoreHint);
             }
-            
+
             // 渲染最近的消息
             recentMessages.forEach(m => renderMessage(m));
-
-            // 如果有中断的进度消息，更新DOM显示
-            if (data.isGenerating) {
-                const interruptedMsg = state.messages.find(m => m.isProgress && m.status === 'interrupted');
-                if (interruptedMsg) {
-                    const msgEl = document.getElementById(`msg-${interruptedMsg.id}`);
-                    if (msgEl) {
-                        const statusEl = msgEl.querySelector('.progress-status');
-                        const percentEl = msgEl.querySelector('.progress-percent');
-                        const progressBar = msgEl.querySelector('.progress-bar-fill');
-                        if (statusEl) statusEl.textContent = '❌ 已终止';
-                        if (percentEl) percentEl.textContent = '100%';
-                        if (progressBar) progressBar.style.width = '100%';
-                    }
-                }
-            }
 
             // 滚动到底部显示最新消息
             setTimeout(() => {
