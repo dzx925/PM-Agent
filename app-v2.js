@@ -648,20 +648,24 @@ function renderMessage(message) {
         div.classList.add('progress-message');
         // 根据进度状态显示不同文本
         let statusText = '🚀 正在生成...';
+        let showPercent = true;
         if (message.status === 'interrupted') {
             statusText = '❌ 已终止';
+            showPercent = false;
         } else if (message.status === 'error') {
             statusText = '❌ 生成失败';
+            showPercent = false;
         } else if (message.status === 'complete' || message.progress >= 100) {
             statusText = '✅ 生成完成';
         }
+        const percentText = showPercent ? `${message.progress || 0}%` : '';
         div.innerHTML = `
             <div class="message-avatar">${avatar}</div>
             <div class="message-body">
                 <div class="progress-card">
                     <div class="progress-header">
                         <span class="progress-status">${statusText}</span>
-                        <span class="progress-percent">${message.progress || 0}%</span>
+                        <span class="progress-percent">${percentText}</span>
                     </div>
                     <div class="progress-bar-container">
                         <div class="progress-bar-fill" style="width: ${message.progress || 0}%"></div>
@@ -1135,9 +1139,13 @@ function updateProgressMessage(messageId, data) {
     } else if (data.status === 'error' && statusEl) {
         statusEl.textContent = '❌ 生成失败';
         progressCard.classList.add('error');
+        // 清除百分比显示
+        if (progressPercent) progressPercent.textContent = '';
     } else if (data.status === 'interrupted' && statusEl) {
         statusEl.textContent = '❌ 已终止';
         progressCard.classList.add('interrupted');
+        // 清除百分比显示
+        if (progressPercent) progressPercent.textContent = '';
     }
     
     // 更新步骤列表 - 根据当前进度更新每个步骤的状态
@@ -1229,8 +1237,8 @@ async function stopGeneration(messageId) {
 
         if (response.ok) {
             updateProgressMessage(messageId, {
-                status: 'interrupted',
-                progress: 100
+                status: 'interrupted'
+                // 不设置 progress，保持原进度
             });
             // 更新按钮状态为发送
             updateSendButtonState();
@@ -1747,11 +1755,11 @@ function loadSavedState() {
         // 终态列表：成功、失败、终止
         const FINAL_STATES = ['complete', 'error', 'interrupted'];
 
-        // 检查所有进度消息，非终态转为终止
+        // 检查所有进度消息，非终态转为终止（保持原进度）
         state.messages.forEach(msg => {
             if (msg.isProgress && !FINAL_STATES.includes(msg.status)) {
                 msg.status = 'interrupted';
-                msg.progress = 100;
+                // 保持原进度，不强制设为100%
             }
         });
 
