@@ -408,30 +408,22 @@ async function executeDynamicSteps(steps, scene, systemPrompt, apiKey, res, phas
     '结构化输出': (ctx) => `业务场景：${scene}\n\nHTML原型：\n${ctx.html?.substring(0, 1000) || ''}\n\n请基于以上HTML原型，生成结构化YAML说明。`
   };
   
-  // 定义每个步骤的进度范围
-  const stepProgressRanges = [
-    { start: 5, end: 15 },   // 步骤1
-    { start: 18, end: 28 },  // 步骤2
-    { start: 32, end: 40 },  // 步骤3
-    { start: 45, end: 55 },  // 步骤4
-    { start: 60, end: 75 },  // 步骤5
-    { start: 80, end: 90 }   // 步骤6
-  ];
-  
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const stepTitle = step.title;
     const stepNum = i + 1;
-    const progressRange = stepProgressRanges[i] || { start: 10, end: 90 };
+    // 动态计算进度：当前步骤完成后的进度
+    const progress = Math.floor((stepNum / totalSteps) * 100);
     
-    // 发送步骤开始进度
+    // 发送步骤开始进度（使用上一步的进度，第一步为0）
+    const startProgress = i === 0 ? 0 : Math.floor((i / totalSteps) * 100);
     sendSSE(res, {
       type: 'progress',
       phase,
       step: stepNum,
       totalSteps,
       stepData: { title: stepTitle, description: `执行${stepTitle}...` },
-      progress: progressRange.start,
+      progress: startProgress,
       status: 'ai-generating'
     });
     
@@ -445,13 +437,15 @@ async function executeDynamicSteps(steps, scene, systemPrompt, apiKey, res, phas
     // 执行步骤
     try {
       const result = await callSiliconFlow(systemPrompt, prompt, apiKey, (msg) => {
+        // 中间进度：步骤开始和结束的平均值
+        const midProgress = Math.floor((startProgress + progress) / 2);
         sendSSE(res, {
           type: 'progress',
           phase,
           step: stepNum,
           totalSteps,
           stepData: { title: stepTitle, description: msg },
-          progress: Math.floor((progressRange.start + progressRange.end) / 2),
+          progress: midProgress,
           status: 'ai-generating'
         });
       });
@@ -475,7 +469,7 @@ async function executeDynamicSteps(steps, scene, systemPrompt, apiKey, res, phas
         step: stepNum,
         totalSteps,
         stepData: { title: stepTitle, description: '✓ 完成' },
-        progress: progressRange.end,
+        progress: progress,
         status: 'complete'
       });
       
@@ -537,11 +531,6 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
     'prd-optimizer': (ctx) => `业务场景：${ctx.scene}\n\n请整合所有章节生成最终完整PRD。`
   };
   
-  // 计算进度范围（PRD阶段从50%到95%）
-  const startProgress = 50;
-  const endProgress = 95;
-  const progressStep = (endProgress - startProgress) / totalSteps;
-  
   // 保存中间结果用于solution-merger
   let frameworkResult = '';
   let moduleResult = '';
@@ -550,7 +539,10 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
     const subSkill = subSkills[i];
     const skillName = subSkill.skillName;
     const stepNum = i + 1;
-    const stepProgress = Math.floor(startProgress + progressStep * i);
+    // 动态计算进度：当前步骤完成后的进度
+    const progress = Math.floor((stepNum / totalSteps) * 100);
+    // 步骤开始进度（使用上一步的进度，第一步为0）
+    const startProgress = i === 0 ? 0 : Math.floor((i / totalSteps) * 100);
     
     console.log(`执行PRD子Skill ${stepNum}/${totalSteps}: ${skillName}`);
     
@@ -564,7 +556,7 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
         title: subSkill.title, 
         description: subSkill.description || `执行${subSkill.title}...`
       },
-      progress: stepProgress,
+      progress: startProgress,
       status: 'ai-generating'
     });
     
@@ -598,6 +590,8 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
     // 执行子Skill
     try {
       const result = await callSiliconFlow(prdSkillContent, prompt, apiKey, (msg) => {
+        // 中间进度：步骤开始和结束的平均值
+        const midProgress = Math.floor((startProgress + progress) / 2);
         sendSSE(res, {
           type: 'progress',
           phase: 'prd',
@@ -607,7 +601,7 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
             title: subSkill.title, 
             description: msg
           },
-          progress: Math.floor(stepProgress + progressStep / 2),
+          progress: midProgress,
           status: 'ai-generating'
         });
       });
@@ -631,7 +625,7 @@ async function executePrdSubSkills(subSkills, prdSkillContent, apiKey, res, cont
           title: subSkill.title, 
           description: '✓ 完成'
         },
-        progress: Math.floor(stepProgress + progressStep),
+        progress: progress,
         status: 'complete'
       });
       
