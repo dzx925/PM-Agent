@@ -332,6 +332,22 @@ let abortController = null;
 // 监听页面刷新/关闭事件
 window.addEventListener('beforeunload', () => {
     isPageRefreshing = true;
+    // 如果正在生成，保存状态标记为中断
+    if (state.isGenerating) {
+        // 更新进度消息为中断状态
+        const progressMsg = state.messages.find(m => m.isProgress && m.progress < 100);
+        if (progressMsg) {
+            progressMsg.progress = 100;
+            progressMsg.status = 'interrupted';
+        }
+        // 保存状态（保持 isGenerating: true，让页面加载后知道需要恢复中断状态）
+        localStorage.setItem('hr_agent_state', JSON.stringify({
+            messages: state.messages.slice(-50),
+            currentProject: state.currentProject,
+            sessionId: state.sessionId,
+            isGenerating: true
+        }));
+    }
     // 中断正在进行的 fetch 请求
     if (abortController) {
         abortController.abort();
