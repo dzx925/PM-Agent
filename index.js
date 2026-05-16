@@ -1435,7 +1435,14 @@ app.post('/generate', async (req, res) => {
       yaml: yamlResult
     });
     
-    // 完成
+    // 完成 - 更新任务状态
+    if (task) {
+      task.status = 'completed';
+      task.progress = 100;
+      task.results.html = html;
+      task.results.prd = prdHtml;
+    }
+    
     sendSSE(res, {
       type: 'complete',
       progress: 100,
@@ -1449,6 +1456,11 @@ app.post('/generate', async (req, res) => {
     
   } catch (error) {
     console.error('生成失败:', error.message);
+    // 更新任务状态为错误
+    if (task) {
+      task.status = 'error';
+      task.results.error = error.message;
+    }
     sendSSE(res, { type: 'error', message: error.message });
     res.end();
   }
