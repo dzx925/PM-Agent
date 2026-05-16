@@ -1302,58 +1302,12 @@ app.post('/generate', async (req, res) => {
       return;
     }
     
-    // 阶段2: PRD生成（使用动态子Skill执行）
+    // 阶段2: PRD生成（纯SKILL方案，由编排器负责完整调度）
     sendSSE(res, { 
       type: 'phase', 
       phase: 'prd', 
       name: 'PRD生成',
       skill: 'pm-prd-skills'
-    });
-    
-    // 步骤0: 调用总Skill确定要使用哪些子Skill
-    sendSSE(res, {
-      type: 'progress',
-      phase: 'prd',
-      step: 0,
-      totalSteps: 1,
-      stepData: { 
-        title: '分析需求', 
-        description: '确定PRD生成策略...'
-      },
-      progress: 48,
-      status: 'ai-generating'
-    });
-    
-    // 调用总Skill确定子Skill列表
-    const selectedSkillNames = await determinePrdSubSkills(scene, html, prdSkill, apiKey);
-    
-    // 获取所有可用的子Skill信息
-    const allSubSkills = parsePrdSubSkills(prdSkill);
-    
-    // 根据总Skill返回的列表，筛选出要使用的子Skill
-    const prdSubSteps = selectedSkillNames.map(skillName => {
-      const skillInfo = allSubSkills.find(s => s.skillName === skillName);
-      return skillInfo || { 
-        skillName, 
-        title: skillName, 
-        description: '执行' + skillName,
-        icon: getSkillIcon(skillName)
-      };
-    });
-    
-    console.log('=== PRD生成使用的子Skill步骤 ===');
-    console.log('步骤数量:', prdSubSteps.length);
-    console.log('步骤列表:', prdSubSteps.map(s => `${s.icon} ${s.skillName}: ${s.title}`));
-    
-    // 发送子Skill步骤列表到前端（展示用，不实际执行）
-    sendSSE(res, {
-      type: 'steps',
-      prdSubSteps: prdSubSteps.map(s => ({
-        skill: s.skillName,
-        icon: s.icon,
-        title: s.title,
-        desc: s.description
-      }))
     });
     
     // 发送PRD生成开始信号
@@ -1368,7 +1322,7 @@ app.post('/generate', async (req, res) => {
       }
     });
     
-    // 调用prototype-to-prd-orchestrator，由它负责完整调度
+    // 调用prototype-to-prd-orchestrator，由它负责完整调度（包括步骤列表和状态输出）
     const prdSkillContent = await getSubSkillContent('prototype-to-prd-orchestrator');
     
     let prompt;
@@ -1379,8 +1333,34 @@ app.post('/generate', async (req, res) => {
       prompt = `业务场景：${scene}\n\n${html ? 'HTML原型：\n```html\n' + html.substring(0, 2000) + '\n```\n' : ''}${yamlResult ? 'YAML数据：\n```yaml\n' + yamlResult.substring(0, 2000) + '\n```\n' : ''}请生成完整的PRD文档，包含所有章节，输出HTML格式。`;
     }
     
+    // 用于存储步骤列表（从SKILL输出中解析）
+    let prdSubSteps = [];
+    
     // 执行编排器
     const finalPrdResult = await callSiliconFlow(prdSkill, prompt, apiKey, (msg) => {
+      // 解析SKILL输出的步骤列表标记 [STEPS]...[END_STEPS]
+      const stepsMatch = msg.match(/\[STEPS\]\s*([\s\S]*?)\[END_STEPS\]/);
+      if (stepsMatch) {
+        const stepsContent = stepsMatch[1].trim();
+        prdSubSteps = stepsContent.split('\n').filter(s => s.trim());
+        
+        console.log('=== 从SKILL解析到的步骤列表 ===');
+        console.log('步骤数量:', prdSubSteps.length);
+        console.log('步骤列表:', prdSubSteps);
+        
+        // 发送步骤列表到前端
+        sendSSE(res, {
+          type: 'steps',
+          prdSubSteps: prdSubSteps.map((stepName, index) => ({
+            skill: stepName,
+            icon: getSkillIcon(stepName),
+            title: stepName,
+            desc: `正在执行${stepName}...`
+          }))
+        });
+        return;
+      }
+      
       // 解析SKILL输出的状态标记
       if (msg.includes('[COMPLETE]')) {
         // 生成完成标记
@@ -1409,14 +1389,18 @@ app.post('/generate', async (req, res) => {
       if (stepMatch) {
         const stepIndex = parseInt(stepMatch[1]);
         const stepDesc = stepMatch[2];
-        const progress = 50 + (stepIndex * 10); // 50% - 90%
+        const totalSteps = prdSubSteps.length || 9;
+        const progress = Math.round(50 + (stepIndex * 50) / totalSteps); // 50% - 100%
+        
         sendSSE(res, {
           type: 'progress',
           phase: 'prd',
+          step: stepIndex,
+          totalSteps: totalSteps,
           progress: progress,
           status: 'ai-generating',
           stepData: {
-            title: `步骤 ${stepIndex + 1}`,
+            title: prdSubSteps[stepIndex] || `步骤 ${stepIndex + 1}`,
             description: stepDesc
           }
         });
