@@ -1719,7 +1719,7 @@ function loadSavedState() {
         }
         if (data.currentProject) state.currentProject = data.currentProject;
         if (data.sessionId) state.sessionId = data.sessionId;
-        
+
         // 如果之前有生成中的任务，标记为已中断
         if (data.isGenerating) {
             state.isGenerating = false;
@@ -1729,10 +1729,8 @@ function loadSavedState() {
                 progressMsg.progress = 100;
                 progressMsg.status = 'interrupted';
             }
-            addMessage('assistant', '❌ 生成已中断（页面刷新）');
-            saveState();
         }
-        
+
         // 恢复显示 - 只加载最近的消息
         if (state.messages.length > 0) {
             // 只加载最近的消息（已经按时间排序，直接取最后 MESSAGE_PAGE_SIZE 条）
@@ -1749,7 +1747,23 @@ function loadSavedState() {
             
             // 渲染最近的消息
             recentMessages.forEach(m => renderMessage(m));
-            
+
+            // 如果有中断的进度消息，更新DOM显示
+            if (data.isGenerating) {
+                const interruptedMsg = state.messages.find(m => m.isProgress && m.status === 'interrupted');
+                if (interruptedMsg) {
+                    const msgEl = document.getElementById(`msg-${interruptedMsg.id}`);
+                    if (msgEl) {
+                        const statusEl = msgEl.querySelector('.progress-status');
+                        const percentEl = msgEl.querySelector('.progress-percent');
+                        const progressBar = msgEl.querySelector('.progress-bar-fill');
+                        if (statusEl) statusEl.textContent = '❌ 已终止';
+                        if (percentEl) percentEl.textContent = '100%';
+                        if (progressBar) progressBar.style.width = '100%';
+                    }
+                }
+            }
+
             // 滚动到底部显示最新消息
             setTimeout(() => {
                 const container = document.getElementById('chat-messages');
