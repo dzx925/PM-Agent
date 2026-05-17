@@ -1094,6 +1094,7 @@ function updateProgressMessage(messageId, data) {
         const msg = state.messages[msgIndex];
         if (data.progress !== undefined) msg.progress = data.progress;
         if (data.currentStep) msg.currentStep = data.currentStep;
+        if (data.status) msg.status = data.status;
         if (data.status === 'complete') msg.progress = 100;
         // 更新步骤状态
         if (data.steps) {
